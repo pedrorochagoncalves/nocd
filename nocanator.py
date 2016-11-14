@@ -11,7 +11,6 @@ class Nocanator(object):
         if config is None:
             logging.critical("No config provided. Exiting...")
             exit(2)
-        self.port = config['port']
         self.server = None
         self.threads = []
         self.clients = []
@@ -28,11 +27,16 @@ class Nocanator(object):
                 logging.critical('Unable to retrieve server\'s IP address: %s' % msg)
                 exit(3)
 
-        if config['dashboards'] is not None:
+        try:
             self.dashBoards = config['dashboards']
-        else:
+        except:
             logging.critical('No NOC Dashboards provided. Exiting...')
             exit(4)
+
+        try:
+            self.port = config['port']
+        except:
+            self.port = 4455
 
     def open_socket(self):
         try:
@@ -100,7 +104,7 @@ class Nocanator(object):
                     except:
                         logging.info("Client %s disconnected.", socketFd)
                         socketFd.close()
-                        self.clients.pop(socketFd)
+                        self.clients.remove(socketFd)
                 time.sleep(5)
 
 
