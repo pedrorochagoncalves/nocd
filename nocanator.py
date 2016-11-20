@@ -96,16 +96,16 @@ class Nocanator(object):
     def push_dashboards(self):
         while True:
             # Loop through dashboards
-            for dashBoard in self.dashBoards:
-                logging.debug("Sending DashBoard %s.", dashBoard)
+            for dashBoard1, dashBoard2 in zip(self.dashBoards[0::2], self.dashBoards[1::2]):
+                logging.debug("Sending DashBoard %s and %s.", dashBoard1, dashBoard2)
                 for socketFd in self.clients:
                     try:
-                        socketFd.send(dashBoard)
+                        socketFd.send(dashBoard1 + ';' + dashBoard2)
                     except:
                         logging.info("Client %s disconnected.", socketFd)
                         socketFd.close()
                         self.clients.remove(socketFd)
-                time.sleep(5)
+                time.sleep(15)
 
 
 
