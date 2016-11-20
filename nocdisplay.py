@@ -2,6 +2,9 @@ import logging
 import socket
 import sys
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.keys import Keys
+
 
 class Nocdisplay(object):
 
@@ -36,11 +39,33 @@ class Nocdisplay(object):
             try:
                 dashBoards = self.client.recv(128)
                 dashBoards = dashBoards.split(";")
-                print (dashBoards)
-                print("First Dashboard: %s" % dashBoards[0])
-                print("Second Dashboard: %s" % dashBoards[1])
+                logging.debug("Received DashBoards: %s", dashBoards)
+                logging.info("First Dashboard: %s", dashBoards[0])
+                logging.info("Second Dashboard: %s",  dashBoards[1])
+
+                # Open the dashboards in the browser but check if OKTA login
+                #  is required.
                 self.browsers[0].get(dashBoards[0])
+                try:
+                    passwordInput = self.browsers[0].find_element_by_id(
+                        "pass-signin")
+                    if passwordInput is not None:
+                        passwordInput.send_keys("RulezPico368*")
+                        passwordInput.send_keys(Keys.RETURN)
+
+                except NoSuchElementException as msg:
+                    logging.debug("No OKTA login found, proceeding.")
+
                 self.browsers[1].get(dashBoards[1])
+                try:
+                    passwordInput = self.browsers[1].find_element_by_id(
+                        "pass-signin")
+                    if passwordInput is not None:
+                        passwordInput.send_keys("RulezPico368*")
+                        passwordInput.send_keys(Keys.RETURN)
+
+                except NoSuchElementException as msg:
+                    logging.debug("No OKTA login found, proceeding.")
             except KeyboardInterrupt:
                 self.client.close()
                 sys.exit(3)
