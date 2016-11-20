@@ -1,5 +1,6 @@
 import logging
 import socket
+import sys
 from selenium import webdriver
 
 class Nocdisplay(object):
@@ -7,7 +8,7 @@ class Nocdisplay(object):
     def __init__(self, host=None, port=4455):
         if host is None:
             logging.critical("No server address specified. Exiting...")
-            exit(2)
+            sys.exit(2)
         else:
             self.host = host
 
@@ -42,4 +43,4 @@ class Nocdisplay(object):
                 self.browsers[1].get(dashBoards[1])
             except KeyboardInterrupt:
                 self.client.close()
-                exit(3)
+                sys.exit(3)

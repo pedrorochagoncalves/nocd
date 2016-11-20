@@ -1,111 +1,41 @@
-import socket
+#!/usr/bin/python
+import json
 import logging
+import nocpusher
 import sys
-import threading
-import time
-import select
+import argparse
+import nocdisplay
 
-class Nocanator(object):
+logging.basicConfig(level=logging.DEBUG)
 
-    def __init__(self, config=None):
-        if config is None:
-            logging.critical("No config provided. Exiting...")
-            exit(2)
-        self.server = None
-        self.threads = []
-        self.clients = []
+class Nocanator():
 
+    # Main function that runs the actual Application
+    if __name__ == '__main__':
+
+        parser = argparse.ArgumentParser(description='NOCanator 3000 - Keeping OPS teams in Sync.')
+        parser.add_argument('--config', dest='config', action='store', default='config.json',
+                            help='Path to JSON config file.')
+        parser.add_argument('-s', dest='server', action='store_true', default=False,
+                            help='Sets the app to run as the server (the dashboard pusher). Defaults to False (client mode)')
+        parser.add_argument('-a', dest='host', action='store',
+                            help='Sets the server address for the Nocpusher. Required if using client mode.')
+        parser.add_argument('-p', dest='port', action='store', default=4455,
+                            help='Sets the server port for the Nocpusher. Defaults to port 4455.')
+        args = parser.parse_args()
+
+        # Open config file and load it into memory
         try:
-            if config['host'] is not None:
-                self.host = config['host']
-        except KeyError:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 53))
-                self.host = s.getsockname()[0]
-            except socket.error as msg:
-                logging.critical('Unable to retrieve server\'s IP address: %s' % msg)
-                exit(3)
+            with open(args.config) as f:
+                config = json.load(f)
+        except IOError as msg:
+            logging.critical('Cannot open config file: %s' % msg)
+            sys.exit(1)
 
-        try:
-            self.dashBoards = config['dashboards']
-        except:
-            logging.critical('No NOC Dashboards provided. Exiting...')
-            exit(4)
-
-        try:
-            self.port = config['port']
-        except:
-            self.port = 4455
-
-    def open_socket(self):
-        try:
-            self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server.bind((self.host, self.port))
-            self.server.listen(8)
-        except socket.error, (value, message):
-            if self.server:
-                self.server.close()
-            logging.critical( "Could not open socket: " + message)
-            exit(5)
-
-    def run(self):
-        logging.info("WELCOME TO THE NOCanator 3000\n")
-        initMsg = "Initialized with IP " + self.host + ",port " + str(self.port) + " and the following dashboards:\n"
-        for i in range(0, len(self.dashBoards)):
-            initMsg += self.dashBoards[i] + "\n"
-        logging.debug(initMsg)
-
-        # Open Server Socket
-        self.open_socket()
-
-        # Inputs for this server to wait until ready for reading
-        input = [self.server, sys.stdin]
-
-        # Start the DashBoard pushing thread
-        dashBoardPusherThread = threading.Thread(target=self.push_dashboards)
-        dashBoardPusherThread.daemon = True
-        dashBoardPusherThread.start()
-
-        running = True
-        try:
-            while running:
-                inputready, outputready, exceptready = select.select(input, [], [])
-
-                for s in inputready:
-
-                    if s == self.server:
-                        # handle the server socket
-                        socketFd, address = self.server.accept()
-                        socketFd.settimeout(300)
-                        logging.info("Received client check in for host: %s. Starting NOCDisplay there.", address)
-                        self.clients.append(socketFd)
-
-                    elif s == sys.stdin:
-                        # handle standard input
-                        junk = sys.stdin.readline()
-                        running = False
-
-        except KeyboardInterrupt:
-            # Close all threads
-            logging.info("Closing the NOCanator...")
-            self.server.close()
-            logging.info("All sockets closed.")
-            exit(6)
-
-    def push_dashboards(self):
-        while True:
-            # Loop through dashboards
-            for dashBoard1, dashBoard2 in zip(self.dashBoards[0::2], self.dashBoards[1::2]):
-                logging.debug("Sending DashBoard %s and %s.", dashBoard1, dashBoard2)
-                for socketFd in self.clients:
-                    try:
-                        socketFd.send(dashBoard1 + ';' + dashBoard2)
-                    except:
-                        logging.info("Client %s disconnected.", socketFd)
-                        socketFd.close()
-                        self.clients.remove(socketFd)
-                time.sleep(15)
-
-
-
+        # Start the app
+        if args.server is True:
+            noc = nocpusher.Nocpusher(config)
+            noc.run()
+        else:
+            noc = nocdisplay.Nocdisplay(host=args.host, port=args.port)
+            noc.run()
