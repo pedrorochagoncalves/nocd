@@ -18,8 +18,10 @@ class Nocdisplay(object):
         self.port = int(port)
         self.client = None
         self.browsers = []
-        self.browsers.append(webdriver.Firefox())
-        self.browsers.append(webdriver.Firefox())
+        self.browser_profile = webdriver.FirefoxProfile('/Users/pedro/dev/NOCanator/firefox_profile')
+        self.browser_profile.accept_untrusted_certs = True
+        self.browsers.append(webdriver.Firefox(self.browser_profile))
+        self.browsers.append(webdriver.Firefox(self.browser_profile))
 
     def run(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -37,20 +39,22 @@ class Nocdisplay(object):
         running = True
         while running:
             try:
-                dashBoards = self.client.recv(128)
+                dashBoards = self.client.recv(256)
                 dashBoards = dashBoards.split(";")
                 logging.debug("Received DashBoards: %s", dashBoards)
                 logging.info("First Dashboard: %s", dashBoards[0])
                 logging.info("Second Dashboard: %s",  dashBoards[1])
 
-                # Open the dashboards in the browser but check if OKTA login
-                #  is required.
+                # Open the dashboards in the browser but check if OKTA/Grafana
+                # login is required.
                 self.browsers[0].get(dashBoards[0])
                 try:
                     passwordInput = self.browsers[0].find_element_by_id(
                         "pass-signin")
-                    if passwordInput is not None:
-                        passwordInput.send_keys("RulezPico368*")
+                    userInput = self.browsers[0].find_element_by_id(
+                        "user-signin")
+                    if userInput is not None:
+                        passwordInput.send_keys("PASS")
                         passwordInput.send_keys(Keys.RETURN)
 
                 except NoSuchElementException as msg:
@@ -60,8 +64,10 @@ class Nocdisplay(object):
                 try:
                     passwordInput = self.browsers[1].find_element_by_id(
                         "pass-signin")
-                    if passwordInput is not None:
-                        passwordInput.send_keys("RulezPico368*")
+                    userInput = self.browsers[1].find_element_by_id(
+                        "user-signin")
+                    if userInput is not None:
+                        passwordInput.send_keys("PASS")
                         passwordInput.send_keys(Keys.RETURN)
 
                 except NoSuchElementException as msg:

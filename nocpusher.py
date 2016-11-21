@@ -105,7 +105,7 @@ class Nocpusher(object):
                         logging.info("Client %s disconnected.", socketFd)
                         socketFd.close()
                         self.clients.remove(socketFd)
-                time.sleep(15)
+                time.sleep(30)
 
 
 
