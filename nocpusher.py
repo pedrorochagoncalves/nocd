@@ -2,6 +2,7 @@ import socket
 import logging
 import sys
 import threading
+import struct
 import time
 import select
 
@@ -36,7 +37,14 @@ class Nocpusher(object):
         try:
             self.port = config['port']
         except:
+            logging.info('No port provided. Defaulting to 4455')
             self.port = 4455
+
+        try:
+            self.dashboard_frequency = int(config['dashboard_frequency'])
+        except:
+            logging.info('No dashboard frequency provided. Defaulting to 120s.')
+            self.dashboard_frequency = 120
 
     def open_socket(self):
         try:
@@ -95,17 +103,24 @@ class Nocpusher(object):
 
     def push_dashboards(self):
         while True:
+            # Wait for potential NOCDisplays that connect immediately
+            time.sleep(15)
             # Loop through dashboards
             for dashBoard1, dashBoard2 in zip(self.dashBoards[0::2], self.dashBoards[1::2]):
                 logging.debug("Sending DashBoard %s and %s.", dashBoard1, dashBoard2)
                 for socketFd in self.clients:
                     try:
-                        socketFd.send(dashBoard1 + ';' + dashBoard2)
+                        dashBoards = dashBoard1 + ';' + dashBoard2
+                        # Send size first so nocdisplay knows how much to receive
+                        socketFd.send(struct.pack('!I', (len(dashBoards))))
+                        # Now actually send the dashboards
+                        socketFd.send(dashBoards)
                     except:
                         logging.info("Client %s disconnected.", socketFd)
                         socketFd.close()
                         self.clients.remove(socketFd)
-                time.sleep(30)
+                time.sleep(self.dashboard_frequency)
+            time.sleep(self.dashboard_frequency)
 
 
 

@@ -37,5 +37,5 @@ class Nocanator():
             noc = nocpusher.Nocpusher(config)
             noc.run()
         else:
-            noc = nocdisplay.Nocdisplay(host=args.host, port=args.port)
+            noc = nocdisplay.Nocdisplay(config, host=args.host, port=args.port)
             noc.run()
