@@ -5,11 +5,14 @@ import threading
 import struct
 import time
 import select
-from common import common
+import pickle
+from packet import Packet
+from common import Common
+
 
 class Nocpusher(object):
 
-    def __init__(self, config=None, mode=common.DUAL_DASHBOARD_MODE):
+    def __init__(self, config=None, mode=Common.DUAL_DASHBOARD_MODE):
         if config is None:
             logging.critical("No config provided. Exiting...")
             sys.exit(2)
@@ -72,10 +75,10 @@ class Nocpusher(object):
         # Inputs for this server to wait until ready for reading
         input = [self.server, sys.stdin]
 
-        # Start the DashBoard pushing thread
-        dashBoardPusherThread = threading.Thread(target=self.push_dashboards)
-        dashBoardPusherThread.daemon = True
-        dashBoardPusherThread.start()
+        # Start the Tab Changing thread
+        tabChangerThread = threading.Thread(target=self.change_tab)
+        tabChangerThread.daemon = True
+        tabChangerThread.start()
 
         running = True
         try:
@@ -91,6 +94,9 @@ class Nocpusher(object):
                         logging.info("Received client check in for host: %s. Starting NOCDisplay there.", address)
                         self.clients.append(socketFd)
 
+                        # Send the DashBoards to the newly joined NOCDisplay
+                        self.send_dashboards(socketFd, address)
+
                     elif s == sys.stdin:
                         # handle standard input
                         junk = sys.stdin.readline()
@@ -103,41 +109,80 @@ class Nocpusher(object):
             logging.info("All sockets closed.")
             sys.exit(6)
 
-    def push_dashboards(self):
+    def send_dashboards(self, socketFd=None, address=None):
+        '''
+        Create a Packet with all the dashboards that we want the NOCDisplay to rotate.
+        :return:
+        '''
+
+        if socketFd is None or address is None:
+            logging.critical("[FATAL] No socket and/or address passed to send_dashboards. Exiting...")
+            sys.exit(12)
+        p = Packet(operation=Common.RECEIVE_DASHBOARDS,data=self.dashBoards)
+        serializedPacket = pickle.dumps(p)
+        # Send size of packet first
+        socketFd.send(struct.pack('!I', (len(serializedPacket))))
+        # Send packet
+        logging.debug("Sending dashboard list to %s", address)
+        socketFd.send(serializedPacket)
+
+    def change_tab(self):
+        '''
+        Tells the NOCdisplays to change tab
+        :return:
+        '''
+        # Wait for potential NOCDisplays that connect immediately
+        time.sleep(15)
+
         while True:
-            # Wait for potential NOCDisplays that connect immediately
-            time.sleep(15)
-            # Loop through dashboards
-            if self.mode == common.DUAL_DASHBOARD_MODE:
-                for dashBoard1, dashBoard2 in zip(self.dashBoards[0::2], self.dashBoards[1::2]):
-                    logging.debug("Sending DashBoard %s and %s.", dashBoard1, dashBoard2)
-                    for socketFd in self.clients:
-                        try:
-                            dashBoards = dashBoard1 + ';' + dashBoard2
-                            # Send size first so nocdisplay knows how much to receive
-                            socketFd.send(struct.pack('!I', (len(dashBoards))))
-                            # Now actually send the dashboards
-                            socketFd.send(dashBoards)
-                        except:
-                            logging.info("Client %s disconnected.", socketFd)
-                            socketFd.close()
-                            self.clients.remove(socketFd)
-                    time.sleep(self.dashboard_frequency)
-            else:
-                for dashBoard in self.dashBoards:
-                    logging.debug("Sending DashBoard %s.", dashBoard)
-                    for socketFd in self.clients:
-                        try:
-                            # Send size first so nocdisplay knows how much to receive
-                            socketFd.send(struct.pack('!I', (len(dashBoard))))
-                            # Now actually send the dashboards
-                            socketFd.send(dashBoard)
-                        except:
-                            logging.info("Client %s disconnected.", socketFd)
-                            socketFd.close()
-                            self.clients.remove(socketFd)
-                    time.sleep(self.dashboard_frequency)
-            time.sleep(self.dashboard_frequency)
+            # Loop through dashboards-tabs
+            for i in range(len(self.dashBoards)):
+                time.sleep(self.dashboard_frequency)
+                # Loop through the current list of NOCDisplays
+                for client in self.clients:
+                    p = Packet(operation=Common.SWITCH_TAB, data=i)
+                    serializedPacket = pickle.dumps(p)
+                    # Send size of packet first
+                    client.send(struct.pack('!I', (len(serializedPacket))))
+                    # Send packet
+                    logging.debug("Telling NOCDisplays to switch to tab %d", i)
+                    client.send(serializedPacket)
+
+    # def push_dashboards(self):
+    #     while True:
+    #         # Wait for potential NOCDisplays that connect immediately
+    #         time.sleep(15)
+    #         # Loop through dashboards
+    #         if self.mode == Common.DUAL_DASHBOARD_MODE:
+    #             for dashBoard1, dashBoard2 in zip(self.dashBoards[0::2], self.dashBoards[1::2]):
+    #                 logging.debug("Sending DashBoard %s and %s.", dashBoard1, dashBoard2)
+    #                 for socketFd in self.clients:
+    #                     try:
+    #                         dashBoards = dashBoard1 + ';' + dashBoard2
+    #                         # Send size first so nocdisplay knows how much to receive
+    #                         socketFd.send(struct.pack('!I', (len(dashBoards))))
+    #                         # Now actually send the dashboards
+    #                         socketFd.send(dashBoards)
+    #                     except:
+    #                         logging.info("Client %s disconnected.", socketFd)
+    #                         socketFd.close()
+    #                         self.clients.remove(socketFd)
+    #                 time.sleep(self.dashboard_frequency)
+    #         else:
+    #             for dashBoard in self.dashBoards:
+    #                 logging.debug("Sending DashBoard %s.", dashBoard)
+    #                 for socketFd in self.clients:
+    #                     try:
+    #                         # Send size first so nocdisplay knows how much to receive
+    #                         socketFd.send(struct.pack('!I', (len(dashBoard))))
+    #                         # Now actually send the dashboards
+    #                         socketFd.send(dashBoard)
+    #                     except:
+    #                         logging.info("Client %s disconnected.", socketFd)
+    #                         socketFd.close()
+    #                         self.clients.remove(socketFd)
+    #                 time.sleep(self.dashboard_frequency)
+    #         time.sleep(self.dashboard_frequency)
 
 
 

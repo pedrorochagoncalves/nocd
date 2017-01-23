@@ -5,9 +5,10 @@ import nocpusher
 import sys
 import argparse
 import nocdisplay
-from common import common
+from common import Common
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 class Nocanator():
 
@@ -40,11 +41,11 @@ class Nocanator():
 
         # Handle the operation mode
         if args.mode == 'dual':
-            mode = common.DUAL_DASHBOARD_MODE
+            mode = Common.DUAL_DASHBOARD_MODE
         elif args.mode == 'single':
-            mode = common.SINGLE_DASHBOARD_MODE
+            mode = Common.SINGLE_DASHBOARD_MODE
         elif args.mode == 'static':
-            mode = common.SINGLE_STATIC_DASHBOARD_MODE
+            mode = Common.SINGLE_STATIC_DASHBOARD_MODE
         else:
             logging.critical("Unknown operation mode. Must be either 'dual', 'single' or 'static'. Exiting.")
             sys.exit(1)
