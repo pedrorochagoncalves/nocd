@@ -12,14 +12,13 @@ from common import Common
 
 class Nocpusher(object):
 
-    def __init__(self, config=None, mode=Common.DUAL_DASHBOARD_MODE):
+    def __init__(self, config=None):
         if config is None:
             logging.critical("No config provided. Exiting...")
             sys.exit(2)
         self.server = None
         self.threads = []
         self.clients = []
-        self.mode = mode
 
         try:
             if config['host'] is not None:
@@ -147,42 +146,4 @@ class Nocpusher(object):
                     # Send packet
                     logging.debug("Telling NOCDisplays to switch to tab %d", i)
                     client.send(serializedPacket)
-
-    # def push_dashboards(self):
-    #     while True:
-    #         # Wait for potential NOCDisplays that connect immediately
-    #         time.sleep(15)
-    #         # Loop through dashboards
-    #         if self.mode == Common.DUAL_DASHBOARD_MODE:
-    #             for dashBoard1, dashBoard2 in zip(self.dashBoards[0::2], self.dashBoards[1::2]):
-    #                 logging.debug("Sending DashBoard %s and %s.", dashBoard1, dashBoard2)
-    #                 for socketFd in self.clients:
-    #                     try:
-    #                         dashBoards = dashBoard1 + ';' + dashBoard2
-    #                         # Send size first so nocdisplay knows how much to receive
-    #                         socketFd.send(struct.pack('!I', (len(dashBoards))))
-    #                         # Now actually send the dashboards
-    #                         socketFd.send(dashBoards)
-    #                     except:
-    #                         logging.info("Client %s disconnected.", socketFd)
-    #                         socketFd.close()
-    #                         self.clients.remove(socketFd)
-    #                 time.sleep(self.dashboard_frequency)
-    #         else:
-    #             for dashBoard in self.dashBoards:
-    #                 logging.debug("Sending DashBoard %s.", dashBoard)
-    #                 for socketFd in self.clients:
-    #                     try:
-    #                         # Send size first so nocdisplay knows how much to receive
-    #                         socketFd.send(struct.pack('!I', (len(dashBoard))))
-    #                         # Now actually send the dashboards
-    #                         socketFd.send(dashBoard)
-    #                     except:
-    #                         logging.info("Client %s disconnected.", socketFd)
-    #                         socketFd.close()
-    #                         self.clients.remove(socketFd)
-    #                 time.sleep(self.dashboard_frequency)
-    #         time.sleep(self.dashboard_frequency)
-
-
 
