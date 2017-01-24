@@ -24,10 +24,9 @@ class Nocdisplay(object):
         self.password = config['password']
         self.dashboards = None
         self.client = None
-        self.browsers = []
         self.browser_profile = webdriver.FirefoxProfile(config['firefox_profile'])
         self.browser_profile.accept_untrusted_certs = True
-        self.browsers.append(webdriver.Firefox(self.browser_profile))
+        self.browsers = webdriver.Firefox(self.browser_profile)
 
     def set_dashboards(self, dashboards=None):
         self.dashboards = dashboards
@@ -38,7 +37,7 @@ class Nocdisplay(object):
 
         # Prepare the Browsers. Window placement depends on the operation mode
         type(self.browsers)
-        self.browsers[0].maximize_window()
+        self.browsers.maximize_window()
 
         # Sleep a few seconds to give firefox time to maximize the window
         # I've seen firefox not have enough time to maximize and then the windows aren't properly sized
@@ -62,10 +61,10 @@ class Nocdisplay(object):
                     print(self.dashboards[0])
                     # Open all dashboards
                     for i in range(len(self.dashboards)):
-                        self.browsers[0].get(self.dashboards[i])
+                        self.browsers.get(self.dashboards[i])
                         try:
-                            passwordInput = self.browsers[0].find_element_by_id("pass-signin")
-                            userInput = self.browsers[0].find_element_by_id("user-signin")
+                            passwordInput = self.browsers.find_element_by_id("pass-signin")
+                            userInput = self.browsers.find_element_by_id("user-signin")
                             if userInput is not None:
                                 userInput.send_keys(self.user)
                                 passwordInput.send_keys(self.password)
@@ -74,17 +73,19 @@ class Nocdisplay(object):
                         except NoSuchElementException as msg:
                             logging.debug("No OKTA login found, proceeding.")
                         if i != len(self.dashboards) - 1:
-                            self.browsers[0].execute_script("window.open('');")
-                            self.browsers[0].switch_to_window(self.browsers[0].window_handles[-1])
+                            self.browsers.execute_script("window.open('');")
+                            self.browsers.switch_to_window(self.browsers.window_handles[-1])
+                            self.browsers.maximize_window()
 
                 elif p.operation == Common.SWITCH_TAB:
-                    logging.debug("Switching tab to %d: %s", p.data, self.dashboards[p.data])
-                    self.browsers[0].switch_to_window(self.browsers[0].window_handles[p.data])
+                    logging.debug("Switching window to %d: %s", p.data, self.dashboards[p.data])
+                    self.browsers.switch_to_window(self.browsers.window_handles[p.data])
+                    self.browsers.get(self.dashboards[p.data])
                     try:
-                        self.browsers[0].execute_script('alert(1);')
+                        self.browsers.execute_script('alert(1);')
                     except WebDriverException:
-                        logging.debug("No response from alert")
-                    alert = self.browsers[0].switch_to_alert()
+                        logging.debug("Switched window.")
+                    alert = self.browsers.switch_to_alert()
                     alert.accept()
 
             except KeyboardInterrupt:
