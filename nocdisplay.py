@@ -5,10 +5,12 @@ import struct
 import sys
 import pickle
 from common import Common
-from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
-from selenium.webdriver.common.keys import Keys
-
+from pybrowser import Browser
+import gi.repository
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+from threading import Thread
+from gi.repository import GObject
 
 class Nocdisplay(object):
 
@@ -24,25 +26,13 @@ class Nocdisplay(object):
         self.password = config['password']
         self.dashboards = None
         self.client = None
-        self.browser_profile = webdriver.FirefoxProfile(config['firefox_profile'])
-        self.browser_profile.accept_untrusted_certs = True
-        self.browsers = webdriver.Firefox(self.browser_profile)
 
     def set_dashboards(self, dashboards=None):
         self.dashboards = dashboards
 
-    def run(self):
+    def receiverProcessor(self, browser):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client.connect((self.host, self.port))
-
-        # Prepare the Browsers. Window placement depends on the operation mode
-        type(self.browsers)
-        self.browsers.maximize_window()
-
-        # Sleep a few seconds to give firefox time to maximize the window
-        # I've seen firefox not have enough time to maximize and then the windows aren't properly sized
-        time.sleep(5)
-        logging.info("Starting NOCDisplay in Single DashBoard mode.")
 
         running = True
         while running:
@@ -61,33 +51,58 @@ class Nocdisplay(object):
                     print(self.dashboards[0])
                     # Open all dashboards
                     for i in range(len(self.dashboards)):
-                        self.browsers.get(self.dashboards[i])
-                        try:
-                            passwordInput = self.browsers.find_element_by_id("pass-signin")
-                            userInput = self.browsers.find_element_by_id("user-signin")
-                            if userInput is not None:
-                                userInput.send_keys(self.user)
-                                passwordInput.send_keys(self.password)
-                                passwordInput.send_keys(Keys.RETURN)
+                        browser.tabs[i][0].load_url(self.dashboards[i])
 
-                        except NoSuchElementException as msg:
-                            logging.debug("No OKTA login found, proceeding.")
                         if i != len(self.dashboards) - 1:
-                            self.browsers.execute_script("window.open('');")
-                            self.browsers.switch_to_window(self.browsers.window_handles[-1])
-                            self.browsers.maximize_window()
+                            browser.open_new_tab()
 
                 elif p.operation == Common.SWITCH_TAB:
                     logging.debug("Switching window to %d: %s", p.data, self.dashboards[p.data])
-                    self.browsers.switch_to_window(self.browsers.window_handles[p.data])
-                    self.browsers.get(self.dashboards[p.data])
-                    try:
-                        self.browsers.execute_script('alert(1);')
-                    except WebDriverException:
-                        logging.debug("Switched window.")
-                    alert = self.browsers.switch_to_alert()
-                    alert.accept()
+                    browser.focus_tab(p.data)
 
             except KeyboardInterrupt:
                 self.client.close()
                 sys.exit(3)
+
+    def load_url_in_tab(self, browser, tabIndex, url):
+        browser.tabs[tabIndex][0].load_url(url)
+
+    def new_tab(self, browser):
+        browser.open_new_tab()
+
+    def focus_tab(self, browser, tabIndex):
+        browser.notebook.set_current_page(tabIndex)
+
+    def do_thread_work(self, function, *args):
+        GObject.idle_add(function, *args)
+
+    #def stop_thread_work(self):
+
+
+    def run(self):
+        logging.info("Starting NOCDisplay...")
+
+        # Create the Browser
+        #packetQueue = Queue()
+        Gtk.init(sys.argv)
+        browser = Browser()
+
+
+        # Start the Receiver Processor Thread
+        testThread = Thread(target=self.do_thread_work, args=(self.load_url_in_tab, browser, 0, 'www.google.com'))
+        testThread.start()
+
+        testThread2 = Thread(target=self.do_thread_work, args=(self.new_tab, browser,))
+        testThread2.start()
+
+        testThread3 = Thread(target=self.do_thread_work, args=(self.load_url_in_tab, browser, 1, 'www.apple.com'))
+        testThread3.start()
+
+        testThread4 = Thread(target=self.do_thread_work, args=(self.focus_tab, browser, 0,))
+        testThread4.start()
+
+        # Start the UI
+        Gtk.main()
+
+        # Wait for the Receiver Thread
+        #receiverThread.join()
