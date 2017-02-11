@@ -1,6 +1,5 @@
 import logging
 import socket
-import time
 import struct
 import sys
 import pickle
@@ -48,17 +47,16 @@ class Nocdisplay(object):
                 # Receive new list of dashboards
                 if p.operation == Common.RECEIVE_DASHBOARDS:
                     self.set_dashboards(p.data)
-                    print(self.dashboards[0])
                     # Open all dashboards
                     for i in range(len(self.dashboards)):
-                        browser.tabs[i][0].load_url(self.dashboards[i])
+                        self.do_thread_work(self.load_url_in_tab, browser, i, self.dashboards[i])
 
                         if i != len(self.dashboards) - 1:
-                            browser.open_new_tab()
+                            self.do_thread_work(self.new_tab, browser)
 
                 elif p.operation == Common.SWITCH_TAB:
                     logging.debug("Switching window to %d: %s", p.data, self.dashboards[p.data])
-                    browser.focus_tab(p.data)
+                    self.do_thread_work(self.reload_and_focus_tab, browser, p.data)
 
             except KeyboardInterrupt:
                 self.client.close()
@@ -70,14 +68,13 @@ class Nocdisplay(object):
     def new_tab(self, browser):
         browser.open_new_tab()
 
-    def focus_tab(self, browser, tabIndex):
+    def reload_and_focus_tab(self, browser, tabIndex):
+        browser.reload_tab(tabIndex)
         browser.notebook.set_current_page(tabIndex)
 
     def do_thread_work(self, function, *args):
+        print args
         GObject.idle_add(function, *args)
-
-    #def stop_thread_work(self):
-
 
     def run(self):
         logging.info("Starting NOCDisplay...")
@@ -87,22 +84,12 @@ class Nocdisplay(object):
         Gtk.init(sys.argv)
         browser = Browser()
 
-
         # Start the Receiver Processor Thread
-        testThread = Thread(target=self.do_thread_work, args=(self.load_url_in_tab, browser, 0, 'www.google.com'))
-        testThread.start()
-
-        testThread2 = Thread(target=self.do_thread_work, args=(self.new_tab, browser,))
-        testThread2.start()
-
-        testThread3 = Thread(target=self.do_thread_work, args=(self.load_url_in_tab, browser, 1, 'www.apple.com'))
-        testThread3.start()
-
-        testThread4 = Thread(target=self.do_thread_work, args=(self.focus_tab, browser, 0,))
-        testThread4.start()
+        receiverThread = Thread(target=self.receiverProcessor, args=(browser,))
+        receiverThread.start()
 
         # Start the UI
         Gtk.main()
 
         # Wait for the Receiver Thread
-        #receiverThread.join()
+        receiverThread.join()

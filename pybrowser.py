@@ -1,3 +1,5 @@
+# Original author: https://gist.github.com/kklimonda/890640
+
 import sys
 import gi.repository
 gi.require_version('Gtk', '3.0')
@@ -123,8 +125,8 @@ class Browser(Gtk.Window):
         tab.webview.connect("title-changed", self._title_changed)
         return tab
 
-    def reload_tab(self):
-        self.tabs[self.notebook.get_current_page()][0].webview.reload()
+    def reload_tab(self, index):
+        self.tabs[index][0].webview.reload()
 
     def _close_current_tab(self):
         if self.notebook.get_n_pages() == 1:
