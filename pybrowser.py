@@ -1,29 +1,17 @@
 # Original author: https://gist.github.com/kklimonda/890640
 
-import sys
 import gi.repository
 gi.require_version('Gtk', '3.0')
 gi.require_version('WebKit', '3.0')
 from gi.repository import Gtk, Gdk, WebKit
-from multiprocessing import Queue
-
 
 
 class BrowserTab(Gtk.VBox):
     def __init__(self, *args, **kwargs):
         super(BrowserTab, self).__init__(*args, **kwargs)
 
-        go_button = Gtk.Button("go to...")
-        go_button.connect("clicked", self.load_url)
-        self.url_bar = Gtk.Entry()
-        self.url_bar.connect("activate", self.load_url)
         self.webview = WebKit.WebView()
         self.show()
-
-        self.go_back = Gtk.Button("Back")
-        self.go_back.connect("clicked", lambda x: self.webview.go_back())
-        self.go_forward = Gtk.Button("Forward")
-        self.go_forward.connect("clicked", lambda x: self.webview.go_forward())
 
         scrolled_window = Gtk.ScrolledWindow()
         scrolled_window.add(self.webview)
@@ -35,35 +23,17 @@ class BrowserTab(Gtk.VBox):
         self.find_entry.connect("activate",
                                 lambda x: self.webview.search_text(self.find_entry.get_text(),
                                                                    False, True, True))
-        prev_button = Gtk.Button("Previous")
-        next_button = Gtk.Button("Next")
-        prev_button.connect("clicked",
-                            lambda x: self.webview.search_text(self.find_entry.get_text(),
-                                                               False, False, True))
-        next_button.connect("clicked",
-                            lambda x: self.webview.search_text(self.find_entry.get_text(),
-                                                               False, True, True))
+
         find_box.pack_start(close_button, False, False, 0)
         find_box.pack_start(self.find_entry, False, False, 0)
-        find_box.pack_start(prev_button, False, False, 0)
-        find_box.pack_start(next_button, False, False, 0)
         self.find_box = find_box
 
-        url_box = Gtk.HBox()
-        url_box.pack_start(self.go_back, False, False, 0)
-        url_box.pack_start(self.go_forward, False, False, 0)
-        url_box.pack_start(self.url_bar, True, True, 0)
-        url_box.pack_start(go_button, False, False, 0)
-
-        self.pack_start(url_box, False, False, 0)
         self.pack_start(scrolled_window, True, True, 0)
         self.pack_start(find_box, False, False, 0)
 
-        url_box.show_all()
         scrolled_window.show_all()
 
     def load_url(self, url):
-        #url = self.url_bar.get_text()
         if "://" not in url:
             url = "http://" + url
         print("Opening %s" % url)
@@ -94,9 +64,6 @@ class Browser(Gtk.Window):
 
         self.notebook.show()
         self.show()
-
-        # Packet queue to process from main process
-        #self.queue = queue
 
     def _tab_changed(self, notebook, current_page, index):
         if not index:
@@ -151,7 +118,7 @@ class Browser(Gtk.Window):
         self.tabs[current_page][0].find_box.show_all()
         self.tabs[current_page][0].find_entry.grab_focus()
 
-    def _key_pressed(self, widget, event):
+    def _key_pressed(self, event):
         modifiers = Gtk.accelerator_get_default_mod_mask()
         mapping = {Gdk.KEY_r: self.reload_tab,
                    Gdk.KEY_w: self._close_current_tab,
@@ -163,11 +130,3 @@ class Browser(Gtk.Window):
         if event.state & modifiers == Gdk.ModifierType.CONTROL_MASK \
                 and event.keyval in mapping:
             mapping[event.keyval]()
-
-
-#if __name__ == "__main__":
-#    Gtk.init(sys.argv)
-
-#    browser = Browser()
-
-#    Gtk.main()
