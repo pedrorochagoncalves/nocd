@@ -3,13 +3,16 @@ import socket
 import struct
 import sys
 import pickle
+import time
 from common import Common
 from pybrowser import Browser
 import gi.repository
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+gi.require_version('WebKit', '3.0')
+from gi.repository import Gtk, WebKit
 from threading import Thread
 from gi.repository import GObject
+
 
 class Nocdisplay(object):
 
@@ -64,23 +67,39 @@ class Nocdisplay(object):
 
     def load_url_in_tab(self, browser, tabIndex, url):
         browser.tabs[tabIndex][0].load_url(url)
+        self.okta_login(browser, tabIndex)
 
     def new_tab(self, browser):
         browser.open_new_tab()
 
     def reload_and_focus_tab(self, browser, tabIndex):
         browser.reload_tab(tabIndex)
+        # This doesn't seem to work, the load status never changes
+        # while browser.tabs[tabIndex][0].webview.get_load_status() != WebKit.LoadStatus.WEBKIT_LOAD_FINISHED:
+        time.sleep(5)
+        self.okta_login(browser, tabIndex)
         browser.notebook.set_current_page(tabIndex)
 
+    def okta_login(self, browser, tabIndex):
+        doc = browser.tabs[tabIndex][0].webview.get_dom_document()
+        username = doc.get_elements_by_name("username")
+        password = doc.get_elements_by_name("password")
+        childUserName = username.item(0)
+        childPassWord = password.item(0)
+        if childUserName is not None and childPassWord is not None:
+            childUserName.set_value(self.config['user'])
+            childPassWord.set_value(self.config['password'])
+            SubBtn = doc.get_elements_by_name("login")
+            btn = SubBtn.item(0)
+            btn.click()
+
     def do_thread_work(self, function, *args):
-        print args
         GObject.idle_add(function, *args)
 
     def run(self):
         logging.info("Starting NOCDisplay...")
 
         # Create the Browser
-        #packetQueue = Queue()
         Gtk.init(sys.argv)
         browser = Browser()
 
@@ -89,7 +108,12 @@ class Nocdisplay(object):
         receiverThread.start()
 
         # Start the UI
-        Gtk.main()
-
-        # Wait for the Receiver Thread
-        receiverThread.join()
+        try:
+            Gtk.main()
+        except KeyboardInterrupt:
+            logging.info("Closing the application...")
+            self.client.close()
+            Gtk.main_quit()
+            # Wait for the Receiver Thread
+            receiverThread.join()
+            sys.exit(4)
