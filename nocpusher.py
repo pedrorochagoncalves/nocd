@@ -63,10 +63,10 @@ class Nocpusher(object):
 
     def run(self):
         logging.info("WELCOME TO THE NOCanator 3000\n")
-        initMsg = "Initialized with IP " + self.host + ",port " + str(self.port) + " and the following dashboards:\n"
+        init_msg = 'Initialized with IP {0}, port {1} and the following dashboards:\n'.format(self.host, self.port)
         for i in range(0, len(self.dashBoards)):
-            initMsg += self.dashBoards[i] + "\n"
-        logging.debug(initMsg)
+            init_msg += self.dashBoards[i] + "\n"
+        logging.debug(init_msg)
 
         # Open Server Socket
         self.open_socket()
