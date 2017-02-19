@@ -39,6 +39,12 @@ class BrowserTab(Gtk.VBox):
         print("Opening %s" % url)
         self.webview.load_uri(url)
 
+    def get_html(self):
+        self.webview.execute_script('oldtitle=document.title;document.title=document.documentElement.innerHTML;')
+        html = self.webview.get_main_frame().get_title()
+        self.webview.execute_script('document.title=oldtitle;')
+        return html
+
 
 class Browser(Gtk.Window):
     def __init__(self, *args, **kwargs):

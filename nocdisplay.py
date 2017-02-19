@@ -81,17 +81,24 @@ class Nocdisplay(object):
         browser.notebook.set_current_page(tabIndex)
 
     def okta_login(self, browser, tabIndex):
-        doc = browser.tabs[tabIndex][0].webview.get_dom_document()
-        username = doc.get_elements_by_name("username")
-        password = doc.get_elements_by_name("password")
-        childUserName = username.item(0)
-        childPassWord = password.item(0)
-        if childUserName is not None and childPassWord is not None:
-            childUserName.set_value(self.config['user'])
-            childPassWord.set_value(self.config['password'])
-            SubBtn = doc.get_elements_by_name("login")
-            btn = SubBtn.item(0)
-            btn.click()
+        doc = browser.tabs[tabIndex][0].get_html()
+        if 'user-signin' in doc and 'pass-signin' in doc:
+            logging.debug('OKTA login found')
+            browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('user-signin').value='{0}';".format(self.user))
+            browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('pass-signin').value='{0}';".format(self.password))
+            browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('credentials').submit();")
+        else:
+            logging.debug('OKTA login not found')
+        # username = doc.get_elements_by_name("username")
+        # password = doc.get_elements_by_name("password")
+        # childUserName = username.item(0)
+        # childPassWord = password.item(0)
+        # if childUserName is not None and childPassWord is not None:
+        #     childUserName.set_value(self.config['user'])
+        #     childPassWord.set_value(self.config['password'])
+        #     SubBtn = doc.get_elements_by_name("login")
+        #     btn = SubBtn.item(0)
+        #     btn.click()
 
     def do_thread_work(self, function, *args):
         GObject.idle_add(function, *args)
