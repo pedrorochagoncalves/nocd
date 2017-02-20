@@ -18,14 +18,23 @@ class Nocdisplay(object):
 
     def __init__(self, config, host=None, port=4455):
         if host is None:
-            logging.critical("FATAL: No server address specified. Exiting...")
-            sys.exit(2)
+            if 'host' in config:
+                self.host = config['host']
+            else:
+                logging.critical("FATAL: No server address specified. Exiting...")
+                sys.exit(2)
         else:
             self.host = host
 
         self.port = int(port)
-        self.user = config['user']
-        self.password = config['password']
+
+        if 'user' in config and 'password' in config:
+            self.user = config['user']
+            self.password = config['password']
+
+        else:
+            logging.critical("No login credentials for OKTA provided in config file. Exiting...")
+
         self.dashboards = None
         self.client = None
 
