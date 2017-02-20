@@ -20,10 +20,9 @@ class Nocpusher(object):
         self.threads = []
         self.clients = []
 
-        try:
-            if config['host'] is not None:
-                self.host = config['host']
-        except KeyError:
+        if 'host' in config:
+             self.host = config['host']
+        else:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect(("8.8.8.8", 53))
@@ -32,21 +31,21 @@ class Nocpusher(object):
                 logging.critical('Unable to retrieve server\'s IP address: %s' % msg)
                 sys.exit(3)
 
-        try:
+        if 'dashboards' in config:
             self.dashBoards = config['dashboards']
-        except:
+        else:
             logging.critical('No NOC Dashboards provided. Exiting...')
             sys.exit(4)
 
-        try:
+        if 'port' in config:
             self.port = config['port']
-        except:
+        else:
             logging.info('No port provided. Defaulting to 4455')
             self.port = 4455
 
-        try:
+        if 'dashboard_frequency' in config:
             self.dashboard_frequency = int(config['dashboard_frequency'])
-        except:
+        else:
             logging.info('No dashboard frequency provided. Defaulting to 120s.')
             self.dashboard_frequency = 120
 
@@ -58,7 +57,7 @@ class Nocpusher(object):
         except socket.error, (value, message):
             if self.server:
                 self.server.close()
-            logging.critical( "Could not open socket: " + message)
+            logging.critical("Could not open socket: " + message)
             sys.exit(5)
 
     def run(self):
@@ -139,11 +138,16 @@ class Nocpusher(object):
                 time.sleep(self.dashboard_frequency)
                 # Loop through the current list of NOCDisplays
                 for client in self.clients:
-                    p = Packet(operation=Common.SWITCH_TAB, data=i)
-                    serializedPacket = pickle.dumps(p)
-                    # Send size of packet first
-                    client.send(struct.pack('!I', (len(serializedPacket))))
-                    # Send packet
-                    logging.debug("Telling NOCDisplays to switch to tab %d", i)
-                    client.send(serializedPacket)
+                    try:
+                        p = Packet(operation=Common.SWITCH_TAB, data=i)
+                        serializedPacket = pickle.dumps(p)
+                        # Send size of packet first
+                        client.send(struct.pack('!I', (len(serializedPacket))))
+                        # Send packet
+                        logging.debug("Telling NOCDisplays to switch to tab %d", i)
+                        client.send(serializedPacket)
+                    except:
+                        logging.info("Client %s disconnected.", client)
+                        client.close()
+                        self.clients.remove(client)
 
