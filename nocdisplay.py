@@ -42,7 +42,7 @@ class Nocdisplay(object):
                 # Receive the size of the packet first
                 packetSizeByteString = self.client.recv(4)
                 packetSize, = struct.unpack('!I', packetSizeByteString)
-                # Now that we know how big the packet is going to be, we can receive it properly
+                # Now t hat we know how big the packet is going to be, we can receive it properly
                 serializedPacket = self.client.recv(packetSize)
                 p = pickle.loads(serializedPacket)
                 logging.debug("Received packet with operation %d", p.operation)
@@ -61,8 +61,7 @@ class Nocdisplay(object):
                     logging.debug("Switching window to %d: %s", p.data, self.dashboards[p.data])
                     self.do_thread_work(self.reload_and_focus_tab, browser, p.data)
 
-            except KeyboardInterrupt:
-                self.client.close()
+            except:
                 sys.exit(3)
 
     def load_url_in_tab(self, browser, tabIndex, url):
@@ -89,16 +88,6 @@ class Nocdisplay(object):
             browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('credentials').submit();")
         else:
             logging.debug('OKTA login not found')
-        # username = doc.get_elements_by_name("username")
-        # password = doc.get_elements_by_name("password")
-        # childUserName = username.item(0)
-        # childPassWord = password.item(0)
-        # if childUserName is not None and childPassWord is not None:
-        #     childUserName.set_value(self.config['user'])
-        #     childPassWord.set_value(self.config['password'])
-        #     SubBtn = doc.get_elements_by_name("login")
-        #     btn = SubBtn.item(0)
-        #     btn.click()
 
     def do_thread_work(self, function, *args):
         GObject.idle_add(function, *args)
@@ -115,12 +104,15 @@ class Nocdisplay(object):
         receiverThread.start()
 
         # Start the UI
-        try:
-            Gtk.main()
-        except KeyboardInterrupt:
-            logging.info("Closing the application...")
-            self.client.close()
-            Gtk.main_quit()
-            # Wait for the Receiver Thread
-            receiverThread.join()
-            sys.exit(4)
+        Gtk.main()
+
+        # Close the application if GTK quit
+        logging.info("Closing the application...")
+        self.client.shutdown(socket.SHUT_RDWR)
+        self.client.close()
+        logging.debug("Closed socket.")
+        # Wait for the Receiver Thread
+        logging.debug("Waiting for receiver thread to stop...")
+        receiverThread.join()
+        logging.debug("OK.")
+        sys.exit(0)

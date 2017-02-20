@@ -124,7 +124,7 @@ class Browser(Gtk.Window):
         self.tabs[current_page][0].find_box.show_all()
         self.tabs[current_page][0].find_entry.grab_focus()
 
-    def _key_pressed(self, event):
+    def _key_pressed(self, widget, event):
         modifiers = Gtk.accelerator_get_default_mod_mask()
         mapping = {Gdk.KEY_r: self.reload_tab,
                    Gdk.KEY_w: self._close_current_tab,
