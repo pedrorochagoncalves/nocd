@@ -5,6 +5,8 @@ import nocpusher
 import sys
 import argparse
 import nocdisplay
+import fileEventHandler
+import pyinotify
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -25,18 +27,25 @@ class Nocanator():
                             help='Sets the server port for the Nocpusher. Defaults to port 4455.')
         args = parser.parse_args()
 
-        # Open config file and load it into memory
-        try:
-            with open(args.config) as f:
-                config = json.load(f)
-        except IOError as msg:
-            logging.critical('Cannot open config file: %s' % msg)
-            sys.exit(1)
-
         # Start the app
         if args.server is True:
-            noc = nocpusher.Nocpusher(config=config)
+            noc = nocpusher.Nocpusher(config_file=args.config)
+            # The watch manager stores the watches and provides operations on watches
+            wm = pyinotify.WatchManager()
+            mask = pyinotify.IN_MODIFY  # watched events
+            file_event_handler = fileEventHandler.EventHandler(noc)
+            notifier = pyinotify.ThreadedNotifier(wm, file_event_handler)
+            # Start the notifier from a new thread, without doing anything as no directory or
+            # file are currently monitored yet.
+            notifier.start()
+            # Start watching a path
+            wdd = wm.add_watch(args.config, mask)
+            # Run the server's main method
             noc.run()
+            # Stop the notifier's thread
+            notifier.stop()
         else:
-            noc = nocdisplay.Nocdisplay(config=config, host=args.host, port=args.port)
+            noc = nocdisplay.Nocdisplay(config_file=args.config, host=args.host, port=args.port)
             noc.run()
+
+        sys.exit(0)

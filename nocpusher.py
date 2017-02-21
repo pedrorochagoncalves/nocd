@@ -6,22 +6,33 @@ import struct
 import time
 import select
 import pickle
+import json
 from packet import Packet
 from common import Common
 
 
 class Nocpusher(object):
 
-    def __init__(self, config=None):
-        if config is None:
-            logging.critical("No config provided. Exiting...")
-            sys.exit(2)
+    def __init__(self, config_file='config.json'):
+        self.config_file = config_file
+        # Open config file and load it into memory
+        try:
+            self.f = open(self.config_file)
+            self.config = json.load(self.f)
+            if self.config is None:
+                logging.critical("No config provided. Exiting...")
+                sys.exit(2)
+        except IOError as msg:
+            logging.critical('Cannot open config file: %s' % msg)
+            sys.exit(1)
+
         self.server = None
         self.threads = []
-        self.clients = []
+        self.client_socketfds = []
+        self.client_addresses = []
 
-        if 'host' in config:
-             self.host = config['host']
+        if 'host' in self.config:
+            self.host = self.config['host']
         else:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -31,23 +42,41 @@ class Nocpusher(object):
                 logging.critical('Unable to retrieve server\'s IP address: %s' % msg)
                 sys.exit(3)
 
-        if 'dashboards' in config:
-            self.dashBoards = config['dashboards']
+        if 'dashboards' in self.config:
+            self.dashBoards = self.config['dashboards']
         else:
             logging.critical('No NOC Dashboards provided. Exiting...')
             sys.exit(4)
 
-        if 'port' in config:
-            self.port = config['port']
+        if 'port' in self.config:
+            self.port = self.config['port']
         else:
             logging.info('No port provided. Defaulting to 4455')
             self.port = 4455
 
-        if 'dashboard_frequency' in config:
-            self.dashboard_frequency = int(config['dashboard_frequency'])
+        if 'dashboard_frequency' in self.config:
+            self.dashboard_frequency = int(self.config['dashboard_frequency'])
         else:
             logging.info('No dashboard frequency provided. Defaulting to 120s.')
             self.dashboard_frequency = 120
+
+    def set_dashboards(self, dashboards=None):
+        self.dashBoards = dashboards
+
+    def reload_config(self):
+        self.f.close()
+        self.f = open(self.config_file)
+        self.config = json.load(self.f)
+        if 'dashboard_frequency' in self.config:
+            self.dashboard_frequency = int(self.config['dashboard_frequency'])
+        if 'dashboards' in self.config:
+            self.set_dashboards(self.config['dashboards'])
+            logging.info('Reloaded dashboards. New dashboards are {0}'.format(self.dashBoards))
+
+            # Send the new dashboards to all NOCDisplays
+            logging.info('Sending the new dashboards to the NOCDisplays.')
+            for client, address in zip(self.client_socketfds, self.client_addresses):
+                self.send_dashboards(client, address)
 
     def open_socket(self):
         try:
@@ -58,7 +87,6 @@ class Nocpusher(object):
             if self.server:
                 self.server.close()
             logging.critical("Could not open socket: " + message)
-            sys.exit(5)
 
     def run(self):
         logging.info("WELCOME TO THE NOCanator 3000\n")
@@ -90,7 +118,8 @@ class Nocpusher(object):
                         socketFd, address = self.server.accept()
                         socketFd.settimeout(300)
                         logging.info("Received client check in for host: %s. Starting NOCDisplay there.", address)
-                        self.clients.append(socketFd)
+                        self.client_socketfds.append(socketFd)
+                        self.client_addresses.append(address)
 
                         # Send the DashBoards to the newly joined NOCDisplay
                         self.send_dashboards(socketFd, address)
@@ -105,7 +134,7 @@ class Nocpusher(object):
             logging.info("Closing the NOCanator...")
             self.server.close()
             logging.info("All sockets closed.")
-            sys.exit(6)
+            #sys.exit(6)
 
     def send_dashboards(self, socketFd=None, address=None):
         '''
@@ -137,7 +166,7 @@ class Nocpusher(object):
             for i in range(len(self.dashBoards)-1, -1, -1):
                 time.sleep(self.dashboard_frequency)
                 # Loop through the current list of NOCDisplays
-                for client in self.clients:
+                for client, address in zip(self.client_socketfds, self.client_addresses):
                     try:
                         p = Packet(operation=Common.SWITCH_TAB, data=i)
                         serializedPacket = pickle.dumps(p)
@@ -147,7 +176,8 @@ class Nocpusher(object):
                         logging.debug("Telling NOCDisplays to switch to tab %d", i)
                         client.send(serializedPacket)
                     except:
-                        logging.info("Client %s disconnected.", client)
+                        logging.info("Client %s disconnected.", address)
                         client.close()
-                        self.clients.remove(client)
+                        self.client_socketfds.remove(client)
+                        self.client_addresses.remove(address)
 

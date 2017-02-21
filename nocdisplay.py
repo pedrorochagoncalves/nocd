@@ -4,6 +4,7 @@ import struct
 import sys
 import pickle
 import time
+import json
 from common import Common
 from pybrowser import Browser
 import gi.repository
@@ -16,10 +17,22 @@ from gi.repository import GObject
 
 class Nocdisplay(object):
 
-    def __init__(self, config, host=None, port=4455):
+    def __init__(self, config_file='config.json', host=None, port=4455):
+        self.config_file = config_file
+        # Open config file and load it into memory
+        try:
+            self.f = open(self.config_file)
+            self.config = json.load(self.f)
+            if self.config is None:
+                logging.critical("No config provided. Exiting...")
+                sys.exit(2)
+        except IOError as msg:
+            logging.critical('Cannot open config file: %s' % msg)
+            sys.exit(1)
+
         if host is None:
-            if 'host' in config:
-                self.host = config['host']
+            if 'host' in self.config:
+                self.host = self.config['host']
             else:
                 logging.critical("FATAL: No server address specified. Exiting...")
                 sys.exit(2)
@@ -28,18 +41,18 @@ class Nocdisplay(object):
 
         self.port = int(port)
 
-        if 'user' in config and 'password' in config:
-            self.user = config['user']
-            self.password = config['password']
+        if 'user' in self.config and 'password' in self.config:
+            self.user = self.config['user']
+            self.password = self.config['password']
 
         else:
             logging.critical("No login credentials for OKTA provided in config file. Exiting...")
 
-        self.dashboards = None
+        self.dashBoards = None
         self.client = None
 
     def set_dashboards(self, dashboards=None):
-        self.dashboards = dashboards
+        self.dashBoards = dashboards
 
     def receiverProcessor(self, browser):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -60,17 +73,17 @@ class Nocdisplay(object):
                 if p.operation == Common.RECEIVE_DASHBOARDS:
                     self.set_dashboards(p.data)
                     # Open all dashboards
-                    for i in range(len(self.dashboards)):
-                        self.do_thread_work(self.load_url_in_tab, browser, i, self.dashboards[i])
+                    for i in range(len(self.dashBoards)):
+                        self.do_thread_work(self.load_url_in_tab, browser, i, self.dashBoards[i])
 
-                        if i != len(self.dashboards) - 1:
+                        if i != len(self.dashBoards) - 1:
                             self.do_thread_work(self.new_tab, browser)
 
                     # Switch to first tab
                     self.do_thread_work(self.reload_and_focus_tab, browser, 0)
 
                 elif p.operation == Common.SWITCH_TAB:
-                    logging.debug("Switching window to %d: %s", p.data, self.dashboards[p.data])
+                    logging.debug("Switching window to %d: %s", p.data, self.dashBoards[p.data])
                     self.do_thread_work(self.reload_and_focus_tab, browser, p.data)
 
             except:
