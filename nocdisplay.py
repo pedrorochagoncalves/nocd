@@ -66,6 +66,9 @@ class Nocdisplay(object):
                         if i != len(self.dashboards) - 1:
                             self.do_thread_work(self.new_tab, browser)
 
+                    # Switch to first tab
+                    self.do_thread_work(self.reload_and_focus_tab, browser, 0)
+
                 elif p.operation == Common.SWITCH_TAB:
                     logging.debug("Switching window to %d: %s", p.data, self.dashboards[p.data])
                     self.do_thread_work(self.reload_and_focus_tab, browser, p.data)

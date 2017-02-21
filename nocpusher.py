@@ -134,7 +134,7 @@ class Nocpusher(object):
 
         while True:
             # Loop through dashboards-tabs
-            for i in range(len(self.dashBoards)):
+            for i in range(len(self.dashBoards)-1, -1, -1):
                 time.sleep(self.dashboard_frequency)
                 # Loop through the current list of NOCDisplays
                 for client in self.clients:
