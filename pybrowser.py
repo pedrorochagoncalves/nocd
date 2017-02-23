@@ -101,7 +101,7 @@ class Browser(Gtk.Window):
     def reload_tab(self, index):
         self.tabs[index][0].webview.reload()
 
-    def _close_current_tab(self):
+    def close_current_tab(self):
         if self.notebook.get_n_pages() == 1:
             return
         page = self.notebook.get_current_page()
@@ -127,7 +127,7 @@ class Browser(Gtk.Window):
     def _key_pressed(self, widget, event):
         modifiers = Gtk.accelerator_get_default_mod_mask()
         mapping = {Gdk.KEY_r: self.reload_tab,
-                   Gdk.KEY_w: self._close_current_tab,
+                   Gdk.KEY_w: self.close_current_tab,
                    Gdk.KEY_t: self.open_new_tab,
                    Gdk.KEY_l: self._focus_url_bar,
                    Gdk.KEY_f: self._raise_find_dialog,

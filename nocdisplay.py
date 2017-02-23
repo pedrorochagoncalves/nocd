@@ -48,7 +48,8 @@ class Nocdisplay(object):
         else:
             logging.critical("No login credentials for OKTA provided in config file. Exiting...")
 
-        self.dashBoards = None
+        self.dashboards = None
+        self.num_tabs = 1
         self.client = None
 
     def set_dashboards(self, dashboards=None):
@@ -72,12 +73,21 @@ class Nocdisplay(object):
                 # Receive new list of dashboards
                 if p.operation == Common.RECEIVE_DASHBOARDS:
                     self.set_dashboards(p.data)
+
+                    # Open the necessary number of tabs
+                    if self.num_tabs < len(self.dashboards):
+                        for num_tabs in range(len(self.dashboards)-1):
+                            self.do_thread_work(self.new_tab, browser)
+                            self.num_tabs += 1
+                    else:
+                        for num_tabs in range (self.num_tabs - len(self.dashboards)):
+                            self.do_thread_work(self.close_tab, browser)
+
                     # Open all dashboards
                     for i in range(len(self.dashBoards)):
                         self.do_thread_work(self.load_url_in_tab, browser, i, self.dashBoards[i])
 
-                        if i != len(self.dashBoards) - 1:
-                            self.do_thread_work(self.new_tab, browser)
+                    logging.debug("Opened %i tabs.", self.num_tabs)
 
                     # Switch to first tab
                     self.do_thread_work(self.reload_and_focus_tab, browser, 0)
@@ -95,6 +105,9 @@ class Nocdisplay(object):
 
     def new_tab(self, browser):
         browser.open_new_tab()
+
+    def close_tab(self, browser):
+        browser.close_current_tab()
 
     def reload_and_focus_tab(self, browser, tabIndex):
         browser.reload_tab(tabIndex)
