@@ -73,15 +73,24 @@ class Nocdisplay(object):
                 # Receive new list of dashboards
                 if p.operation == Common.RECEIVE_DASHBOARDS:
                     self.set_dashboards(p.data)
-
                     # Open the necessary number of tabs
-                    if self.num_tabs < len(self.dashboards):
-                        for num_tabs in range(len(self.dashboards)-1):
-                            self.do_thread_work(self.new_tab, browser)
-                            self.num_tabs += 1
-                    else:
-                        for num_tabs in range (self.num_tabs - len(self.dashboards)):
-                            self.do_thread_work(self.close_tab, browser)
+                    #if self.num_tabs < len(self.dashBoards):
+                    #    for num_tabs in range(len(self.dashBoards) - self.num_tabs):
+                    #        self.do_thread_work(self.new_tab, browser)
+                    #        self.num_tabs += 1
+                    #else:
+                    #    for num_tabs in range(self.num_tabs - len(self.dashBoards)):
+                    #        self.do_thread_work(self.close_tab, browser)
+
+                    # Close all opened tabs
+                    for num_tabs in range(self.num_tabs - 1):
+                        self.do_thread_work(self.close_tab, browser)
+                        self.num_tabs -= 1
+
+                    # Open new tabs
+                    for num_tabs in range(len(self.dashBoards) - self.num_tabs):
+                        self.do_thread_work(self.new_tab, browser)
+                        self.num_tabs += 1
 
                     # Open all dashboards
                     for i in range(len(self.dashBoards)):
