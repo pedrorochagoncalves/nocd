@@ -36,7 +36,6 @@ class BrowserTab(Gtk.VBox):
     def load_url(self, url):
         if "://" not in url:
             url = "http://" + url
-        print("Opening %s" % url)
         self.webview.load_uri(url)
 
     def get_html(self):
