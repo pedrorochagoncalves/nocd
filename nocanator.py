@@ -8,8 +8,6 @@ import nocdisplay
 import fileEventHandler
 import pyinotify
 
-logging.basicConfig(level=logging.DEBUG)
-
 
 class Nocanator():
 

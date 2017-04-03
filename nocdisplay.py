@@ -30,6 +30,22 @@ class Nocdisplay(object):
             logging.critical('Cannot open config file: %s' % msg)
             sys.exit(1)
 
+        # Configure Logging
+        if 'log_level' in self.config:
+            numeric_level = getattr(logging, self.config['log_level'].upper(), None)
+            if not isinstance(numeric_level, int):
+                raise ValueError('Invalid log level: %s' % self.config['log_level'])
+            logging_level = numeric_level
+        else:
+            logging_level = logging.DEBUG
+
+        if 'log_file' in self.config:
+            log_file = self.config['log_file']
+        else:
+            log_file = '/dev/stdout'
+
+        logging.basicConfig(level=logging_level, filename=log_file)
+
         if host is None:
             if 'host' in self.config:
                 self.host = self.config['host']
