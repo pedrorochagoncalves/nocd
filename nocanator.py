@@ -23,7 +23,16 @@ class Nocanator():
                             help='Sets the server address for the Nocpusher. Required if using client mode.')
         parser.add_argument('-p', dest='port', action='store', default=4455,
                             help='Sets the server port for the Nocpusher. Defaults to port 4455.')
+        parser.add_argument('--profile', dest='profile', action='store',
+                            help='Sets the NOC profile. Select the dashboards to display.Ex: SRE or NET')
+        parser.add_argument('--cycle-freq', dest='cycleFrequency', action='store', default=60,
+                            help='Sets the dashboard cycle frequency. Defaults to 60 seconds.')
         args = parser.parse_args()
+
+        if args.host and not args.profile and not args.cycleFrequency:
+            parser.error("NOCDisplays requires NOC profile and cycle frequency. "
+                         "Add --profile with SRE and --cycle-freq with 60 (s) for example.")
+            sys.exit(1)
 
         # Start the app
         if args.server is True:
@@ -43,7 +52,8 @@ class Nocanator():
             # Stop the notifier's thread
             notifier.stop()
         else:
-            noc = nocdisplay.Nocdisplay(config_file=args.config, host=args.host, port=args.port)
+            noc = nocdisplay.Nocdisplay(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
+                                        cycleFrequency=args.cycleFrequency)
             noc.run()
 
         sys.exit(0)

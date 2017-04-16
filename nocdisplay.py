@@ -6,6 +6,7 @@ import pickle
 import time
 import json
 from common import Common
+from packet import Packet
 from pybrowser import Browser
 import gi.repository
 gi.require_version('Gtk', '3.0')
@@ -17,7 +18,7 @@ from gi.repository import GObject
 
 class Nocdisplay(object):
 
-    def __init__(self, config_file='config.json', host=None, port=4455):
+    def __init__(self, config_file='config.json', host=None, port=4455, profile=None, cycleFrequency=60):
         self.config_file = config_file
         # Open config file and load it into memory
         try:
@@ -60,16 +61,32 @@ class Nocdisplay(object):
         if 'user' in self.config and 'password' in self.config:
             self.user = self.config['user']
             self.password = self.config['password']
-
         else:
             logging.critical("No login credentials for OKTA provided in config file. Exiting...")
 
         self.dashboards = None
         self.num_tabs = 1
         self.client = None
+        self.profile = profile
+        self.cycleFrequency = cycleFrequency
+        self.run_thread = True
 
     def set_dashboards(self, dashboards=None):
         self.dashBoards = dashboards
+
+    def send_noc_profile(self, socketFd=None):
+        '''
+        Send a packet to the NOC server requesting NOC profile
+        :return:
+        '''
+
+        p = Packet(operation=Common.SEND_NOC_PROFILE, data=self.profile)
+        serializedPacket = pickle.dumps(p)
+        # Send size of packet first
+        socketFd.send(struct.pack('!I', (len(serializedPacket))))
+        # Send packet
+        logging.debug("Sending NOC Profile [{0}] to the NOC server at {0}".format(self.profile, self.host))
+        socketFd.send(serializedPacket)
 
     def receiverProcessor(self, browser):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -89,14 +106,6 @@ class Nocdisplay(object):
                 # Receive new list of dashboards
                 if p.operation == Common.RECEIVE_DASHBOARDS:
                     self.set_dashboards(p.data)
-                    # Open the necessary number of tabs
-                    #if self.num_tabs < len(self.dashBoards):
-                    #    for num_tabs in range(len(self.dashBoards) - self.num_tabs):
-                    #        self.do_thread_work(self.new_tab, browser)
-                    #        self.num_tabs += 1
-                    #else:
-                    #    for num_tabs in range(self.num_tabs - len(self.dashBoards)):
-                    #        self.do_thread_work(self.close_tab, browser)
 
                     # Close all opened tabs
                     for num_tabs in range(self.num_tabs - 1):
@@ -118,11 +127,29 @@ class Nocdisplay(object):
                     self.do_thread_work(self.reload_and_focus_tab, browser, 0)
 
                 elif p.operation == Common.SWITCH_TAB:
-                    logging.debug("Switching window to %d: %s", p.data, self.dashBoards[p.data])
-                    self.do_thread_work(self.reload_and_focus_tab, browser, p.data)
+                    self.change_tab(p.data, browser)
 
             except:
-                sys.exit(3)
+                logging.info("An error happened while receiving a packet from the NOC server.")
+
+    def change_tab(self, tabNumber=None, browser=None):
+        '''
+        Changes tab on the browser to the specified tab number.
+        '''
+
+        logging.debug("Switching tabs to tab number %d: %s", tabNumber, self.dashBoards[tabNumber])
+        self.do_thread_work(self.reload_and_focus_tab, browser, tabNumber)
+
+    def cycle_tabs(self, browser=None):
+        '''
+        Cycles through the dashboards/tabs
+        '''
+
+        while self.run_thread:
+            # Loop through dashboards-tabs
+            for i in range(len(self.dashBoards) - 1, -1, -1):
+                time.sleep(self.cycleFrequency)
+                self.change_tab(i, browser)
 
     def load_url_in_tab(self, browser, tabIndex, url):
         browser.tabs[tabIndex][0].load_url(url)

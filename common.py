@@ -9,6 +9,7 @@ class Common():
     # and rotating dashboard on the top
     SINGLE_STATIC_DASHBOARD_MODE = 3
 
-    # Operations
+    # Operations from the NOCDisplays PoV
     RECEIVE_DASHBOARDS = 1
     SWITCH_TAB = 2
+    SEND_NOC_PROFILE = 3

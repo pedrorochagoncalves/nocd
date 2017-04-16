@@ -42,11 +42,6 @@ class Nocpusher(object):
 
         logging.basicConfig(level=logging_level, filename=log_file)
 
-        self.server = None
-        self.threads = []
-        self.client_socketfds = []
-        self.client_addresses = []
-
         if 'host' in self.config:
             self.host = self.config['host']
         else:
@@ -76,8 +71,17 @@ class Nocpusher(object):
             logging.info('No dashboard frequency provided. Defaulting to 120s.')
             self.dashboard_frequency = 120
 
+        self.server = None
+        self.threads = []
+        self.client_socketfds = []
+        self.client_addresses = []
+        self.run_thread = True
+
     def set_dashboards(self, dashboards=None):
         self.dashBoards = dashboards
+
+    def stop_threads(self):
+        self.run_thread = False
 
     def reload_config(self):
         self.f.close()
@@ -90,9 +94,9 @@ class Nocpusher(object):
             logging.info('Reloaded dashboards. New dashboards are {0}'.format(self.dashBoards))
 
             # Send the new dashboards to all NOCDisplays
-            logging.info('Sending the new dashboards to the NOCDisplays.')
-            for client, address in zip(self.client_socketfds, self.client_addresses):
-                self.send_dashboards(client, address)
+            # logging.info('Sending the new dashboards to the NOCDisplays.')
+            # for client, address in zip(self.client_socketfds, self.client_addresses):
+            #    self.send_dashboards(client, address)
 
     def open_socket(self):
         try:
@@ -105,54 +109,106 @@ class Nocpusher(object):
             logging.critical("Could not open socket: " + message)
 
     def run(self):
+        '''
+        Run method, which starts thread to listen for new connections and thread to listen for incoming commands from
+        Slack (not yet implemented).
+        :return:
+        '''
         logging.info("WELCOME TO THE NOCanator 3000\n")
         init_msg = 'Initialized with IP {0}, port {1} and the following dashboards:\n'.format(self.host, self.port)
-        for i in range(0, len(self.dashBoards)):
-            init_msg += self.dashBoards[i] + "\n"
+        for profile in range(0, len(self.dashBoards)):
+            for dashboard in self.dashBoards[profile]:
+                init_msg += str(self.dashBoards[profile][dashboard]) + "\n"
         logging.debug(init_msg)
+
+        try:
+            # Start the Tab Changing thread
+            tabChangerThread = threading.Thread(target=self.change_tab)
+            tabChangerThread.start()
+
+            # Start thread with loop for new connections from NOCDisplays
+            newConnectionsThread = threading.Thread(target=self.new_connections)
+            newConnectionsThread.start()
+
+            while newConnectionsThread.isAlive():
+                # Wait for threads to finish
+                tabChangerThread.join(1)
+                newConnectionsThread.join(1)
+
+        except KeyboardInterrupt:
+            self.stop_threads()
+            # Wait for threads to finish
+            tabChangerThread.join(1)
+            newConnectionsThread.join(1)
+
+        return 0
+
+    def new_connections(self):
+        '''
+        This method handles new incoming connections from new NOCDisplays. It stores information about the new
+        connections such as IP, source port, noc profile, etc.
+        :return:
+        '''
 
         # Open Server Socket
         self.open_socket()
 
         # Inputs for this server to wait until ready for reading
-        input = [self.server, sys.stdin]
+        inputs = [self.server, sys.stdin]
 
-        # Start the Tab Changing thread
-        tabChangerThread = threading.Thread(target=self.change_tab)
-        tabChangerThread.daemon = True
-        tabChangerThread.start()
+        while self.run_thread:
+            inputready, outputready, exceptready = select.select(inputs, [], [])
 
-        running = True
-        try:
-            while running:
-                inputready, outputready, exceptready = select.select(input, [], [])
+            for s in inputready:
 
-                for s in inputready:
+                if s == self.server:
+                    # handle the server socket
+                    socketFd, address = self.server.accept()
+                    socketFd.settimeout(300)
+                    logging.info("Received client check in for host: %s. Starting NOCDisplay there.", address)
+                    self.client_socketfds.append(socketFd)
+                    self.client_addresses.append(address)
 
-                    if s == self.server:
-                        # handle the server socket
-                        socketFd, address = self.server.accept()
-                        socketFd.settimeout(300)
-                        logging.info("Received client check in for host: %s. Starting NOCDisplay there.", address)
-                        self.client_socketfds.append(socketFd)
-                        self.client_addresses.append(address)
+                    # Receive the NOC profile from the NOCDisplay
+                    nocProfile = self.receive_noc_profile(socketFd, address)
 
-                        # Send the DashBoards to the newly joined NOCDisplay
-                        self.send_dashboards(socketFd, address)
+                    # Send the DashBoards to the newly joined NOCDisplay
+                    self.send_dashboards(socketFd, address, nocProfile)
 
-                    elif s == sys.stdin:
-                        # handle standard input
-                        junk = sys.stdin.readline()
-                        running = False
+                elif s == sys.stdin:
+                    # handle standard input
+                    junk = sys.stdin.readline()
+                    print "If you want to stop the server press Ctrl + C and then press return. It's stupid, I know." \
+                          "You figure it, 'kay?"
 
-        except KeyboardInterrupt:
-            # Close all threads
-            logging.info("Closing the NOCanator...")
-            self.server.close()
-            logging.info("All sockets closed.")
-            #sys.exit(6)
+        # Close the server socket
+        logging.info("Closing the NOCanator...")
+        self.server.close()
+        logging.info("All sockets closed.")
 
-    def send_dashboards(self, socketFd=None, address=None):
+    def receive_noc_profile(self, socketFd=None, address=None):
+        '''
+        Receives a packet from the NOCDisplay with the requested NOC profile
+        :param socketFd:
+        :param address:
+        :return: NOC profile
+        '''
+
+        if socketFd is None or address is None:
+            logging.critical("[FATAL] No socket and/or address passed to receive_noc_profile. Exiting...")
+            sys.exit(12)
+
+        # Receive the size of the packet first
+        packetSizeByteString = socketFd.recv(4)
+        packetSize, = struct.unpack('!I', packetSizeByteString)
+        # Now that we know how big the packet is going to be, we can receive it properly
+        serializedPacket = socketFd.recv(packetSize)
+        p = pickle.loads(serializedPacket)
+        logging.debug("Received NOC Profile {0} from NOC Display {0}.".format(p.data,address))
+
+        return p.data
+
+    def send_dashboards(self, socketFd=None, address=None, profile=None):
         '''
         Create a Packet with all the dashboards that we want the NOCDisplay to rotate.
         :return:
@@ -161,13 +217,29 @@ class Nocpusher(object):
         if socketFd is None or address is None:
             logging.critical("[FATAL] No socket and/or address passed to send_dashboards. Exiting...")
             sys.exit(12)
-        p = Packet(operation=Common.RECEIVE_DASHBOARDS,data=self.dashBoards)
+        elif profile is None:
+            logging.critical("[FATAL] No NOC profile provided to send_dashboards. Exiting...")
+            sys.exit(13)
+
+        # Get the requested NOC profile
+        for i in range(0, len(self.dashBoards)):
+            if profile in self.dashBoards[i]:
+                dashBoardsToSend = self.dashBoards[i][profile]
+
+        # Create the packet with the requested dashboards
+        p = Packet(operation=Common.RECEIVE_DASHBOARDS, data=dashBoardsToSend)
         serializedPacket = pickle.dumps(p)
         # Send size of packet first
         socketFd.send(struct.pack('!I', (len(serializedPacket))))
         # Send packet
-        logging.debug("Sending dashboard list to %s", address)
-        socketFd.send(serializedPacket)
+        logging.debug("Sending dashboards for profile {0} to NOCDisplay {0}".format(profile, address))
+        try:
+            socketFd.send(serializedPacket)
+        except:
+            logging.debug("Failed to send dashboards to NOCDisplay {0}. Closing client connection...".format(address))
+            socketFd.close()
+            self.client_socketfds.remove(socketFd)
+            self.client_addresses.remove(address)
 
     def change_tab(self):
         '''
@@ -177,7 +249,7 @@ class Nocpusher(object):
         # Wait for potential NOCDisplays that connect immediately
         time.sleep(15)
 
-        while True:
+        while self.run_thread:
             # Loop through dashboards-tabs
             for i in range(len(self.dashBoards)-1, -1, -1):
                 time.sleep(self.dashboard_frequency)
