@@ -74,6 +74,21 @@ class Nocdisplay(object):
     def set_dashboards(self, dashboards=None):
         self.dashBoards = dashboards
 
+    def connect_to_noc_server(self):
+        '''
+        Connects to the NOC server provided in the arguments.
+        :return: Returns True if successfull and False if not.
+        '''
+        try:
+            logging.info("Attempting to connect to NOC server at {0}:{0}...".format(self.host, self.port))
+            self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.client.connect((self.host, self.port))
+            logging.info('Done! Connected to NOC Server.')
+            return True
+        except:
+            logging.critical("Unable to connect to NOC server at {0}:{0}".format(self.host, self.port))
+            return False
+
     def send_noc_profile(self, socketFd=None):
         '''
         Send a packet to the NOC server requesting NOC profile
@@ -89,11 +104,11 @@ class Nocdisplay(object):
         socketFd.send(serializedPacket)
 
     def receiverProcessor(self, browser):
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client.connect((self.host, self.port))
+    '''
+    Connects to NOC server, receives and processes packets from NOC server.
+    '''
 
-        running = True
-        while running:
+        while self.run_thread:
             try:
                 # Receive the size of the packet first
                 packetSizeByteString = self.client.recv(4)
@@ -130,7 +145,16 @@ class Nocdisplay(object):
                     self.change_tab(p.data, browser)
 
             except:
-                logging.info("An error happened while receiving a packet from the NOC server.")
+                logging.info("An error happened while receiving a packet from the NOC server. Connection \
+                to NOC server was lost.")
+                # Try to reconnect if connection to NOC server was lost
+                while True:
+                    logging.info('Reconnecting...')
+                    if self.connect_to_noc_server():
+                        break
+                    else:
+                        logging.info('Sleeping for 30 seconds...')
+                        time.sleep(30)
 
     def change_tab(self, tabNumber=None, browser=None):
         '''
@@ -179,30 +203,47 @@ class Nocdisplay(object):
         else:
             logging.debug('OKTA login not found')
 
+    @TODO: Put these things on a common place.
     def do_thread_work(self, function, *args):
         GObject.idle_add(function, *args)
+
+    def stop_threads(self):
+        self.run_thread = False
 
     def run(self):
         logging.info("Starting NOCDisplay...")
 
-        # Create the Browser
-        Gtk.init(sys.argv)
-        browser = Browser()
+        # Connect to NOC Server
+        if self.connect_to_noc_server():
 
-        # Start the Receiver Processor Thread
-        receiverThread = Thread(target=self.receiverProcessor, args=(browser,))
-        receiverThread.start()
+            # Create the Browser
+            Gtk.init(sys.argv)
+            browser = Browser()
 
-        # Start the UI
-        Gtk.main()
 
-        # Close the application if GTK quit
-        logging.info("Closing the application...")
-        self.client.shutdown(socket.SHUT_RDWR)
-        self.client.close()
-        logging.debug("Closed socket.")
-        # Wait for the Receiver Thread
-        logging.debug("Waiting for receiver thread to stop...")
-        receiverThread.join()
-        logging.debug("OK.")
+            # Start the Receiver Processor Thread
+            receiverThread = Thread(target=self.receiverProcessor, args=(browser,))
+            receiverThread.start()
+
+            # Start the tab/dashboard cycle thread
+            cycleTabThread = Thread(target=self.cycle_tabs, args=(browser,))
+            cycleTabThread.start()
+
+            # Start the UI
+            Gtk.main()
+
+            # Close the application if GTK quit
+            logging.info("Closing the application...")
+            self.client.shutdown(socket.SHUT_RDWR)
+            self.client.close()
+            logging.debug("Closed socket.")
+            # Wait for the Receiver Thread
+            logging.debug("Waiting for receiver thread to stop...")
+            receiverThread.join()
+            logging.debug("OK.")
+
+        else:
+            logging.critical('Unable to connect to provided NOC server...Exiting.')
+
+        # Exit
         sys.exit(0)
