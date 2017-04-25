@@ -122,23 +122,17 @@ class Nocpusher(object):
         logging.debug(init_msg)
 
         try:
-            # Start the Tab Changing thread
-            tabChangerThread = threading.Thread(target=self.change_tab)
-            tabChangerThread.start()
-
             # Start thread with loop for new connections from NOCDisplays
             newConnectionsThread = threading.Thread(target=self.new_connections)
             newConnectionsThread.start()
 
             while newConnectionsThread.isAlive():
                 # Wait for threads to finish
-                tabChangerThread.join(1)
                 newConnectionsThread.join(1)
 
         except KeyboardInterrupt:
             self.stop_threads()
             # Wait for threads to finish
-            tabChangerThread.join(1)
             newConnectionsThread.join(1)
 
         return 0

@@ -53,7 +53,7 @@ class Nocanator():
             notifier.stop()
         else:
             noc = nocdisplay.Nocdisplay(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
-                                        cycleFrequency=args.cycleFrequency)
+                                        cycleFrequency=float(args.cycleFrequency))
             noc.run()
 
         sys.exit(0)

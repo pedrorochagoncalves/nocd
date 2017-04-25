@@ -11,5 +11,5 @@ class Common():
 
     # Operations from the NOCDisplays PoV
     RECEIVE_DASHBOARDS = 1
-    SWITCH_TAB = 2
+    SHUTDOWN = 2
     SEND_NOC_PROFILE = 3

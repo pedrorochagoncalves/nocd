@@ -72,7 +72,7 @@ class Nocdisplay(object):
         self.run_thread = True
 
     def set_dashboards(self, dashboards=None):
-        self.dashBoards = dashboards
+        self.dashboards = dashboards
 
     def connect_to_noc_server(self):
         '''
@@ -80,43 +80,65 @@ class Nocdisplay(object):
         :return: Returns True if successfull and False if not.
         '''
         try:
-            logging.info("Attempting to connect to NOC server at {0}:{0}...".format(self.host, self.port))
+            logging.info("Attempting to connect to NOC server at {0}:{1}...".format(self.host, self.port))
             self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client.connect((self.host, self.port))
             logging.info('Done! Connected to NOC Server.')
             return True
         except:
-            logging.critical("Unable to connect to NOC server at {0}:{0}".format(self.host, self.port))
+            logging.critical("Unable to connect to NOC server at {0}:{1}".format(self.host, self.port))
             return False
 
-    def send_noc_profile(self, socketFd=None):
+    def send_noc_profile(self):
         '''
         Send a packet to the NOC server requesting NOC profile
         :return:
         '''
 
-        p = Packet(operation=Common.SEND_NOC_PROFILE, data=self.profile)
-        serializedPacket = pickle.dumps(p)
-        # Send size of packet first
-        socketFd.send(struct.pack('!I', (len(serializedPacket))))
-        # Send packet
-        logging.debug("Sending NOC Profile [{0}] to the NOC server at {0}".format(self.profile, self.host))
-        socketFd.send(serializedPacket)
+        try:
+            p = Packet(operation=Common.SEND_NOC_PROFILE, data=self.profile)
+            serializedPacket = pickle.dumps(p)
+            # Send size of packet first
+            self.client.send(struct.pack('!I', (len(serializedPacket))))
+            # Send packet
+            logging.debug("Sending NOC Profile [{0}] to the NOC server at {1}".format(self.profile, self.host))
+            self.client.send(serializedPacket)
 
-    def receiverProcessor(self, browser):
-    '''
-    Connects to NOC server, receives and processes packets from NOC server.
-    '''
+            return True
+
+        except:
+            logging.critical("Failed to send NOC Profile...")
+            return False
+
+    def receive_packet(self):
+        '''
+        Receives packet and returns content.
+        :return: Returns packet content. Returns False if socket is closed.
+        '''
+
+        # Receive the size of the packet first
+        packetSizeByteString = self.client.recv(4)
+        if packetSizeByteString == '':
+            logging.debug('Connection to server closed.')
+            return Packet(Common.SHUTDOWN)
+
+        packetSize, = struct.unpack('!I', packetSizeByteString)
+        # Now that we know how big the packet is going to be, we can receive it properly
+        serializedPacket = self.client.recv(packetSize)
+        p = pickle.loads(serializedPacket)
+        logging.debug("Received packet with operation %d", p.operation)
+
+        return p
+
+    def receiverProcessor(self, browser=None, cycleTabThread=None):
+        '''
+        Connects to NOC server, receives and processes packets from NOC server.
+        '''
 
         while self.run_thread:
             try:
-                # Receive the size of the packet first
-                packetSizeByteString = self.client.recv(4)
-                packetSize, = struct.unpack('!I', packetSizeByteString)
-                # Now t hat we know how big the packet is going to be, we can receive it properly
-                serializedPacket = self.client.recv(packetSize)
-                p = pickle.loads(serializedPacket)
-                logging.debug("Received packet with operation %d", p.operation)
+                # Receive packet from NOC Server
+                p = self.receive_packet()
 
                 # Receive new list of dashboards
                 if p.operation == Common.RECEIVE_DASHBOARDS:
@@ -128,23 +150,28 @@ class Nocdisplay(object):
                         self.num_tabs -= 1
 
                     # Open new tabs
-                    for num_tabs in range(len(self.dashBoards) - self.num_tabs):
+                    for num_tabs in range(len(self.dashboards) - self.num_tabs):
                         self.do_thread_work(self.new_tab, browser)
                         self.num_tabs += 1
 
                     # Open all dashboards
-                    for i in range(len(self.dashBoards)):
-                        self.do_thread_work(self.load_url_in_tab, browser, i, self.dashBoards[i])
+                    for i in range(len(self.dashboards)):
+                        self.do_thread_work(self.load_url_in_tab, browser, i, self.dashboards[i])
 
                     logging.debug("Opened %i tabs.", self.num_tabs)
 
                     # Switch to first tab
                     self.do_thread_work(self.reload_and_focus_tab, browser, 0)
 
-                elif p.operation == Common.SWITCH_TAB:
-                    self.change_tab(p.data, browser)
+                    # Check if cycle tab thread is alive. If not, start it
+                    if cycleTabThread.isAlive() is False:
+                        cycleTabThread.start()
 
-            except:
+                elif p.operation == Common.SHUTDOWN:
+                    logging.info('Shutting down receiver processor...')
+                    return False
+
+            except socket.error:
                 logging.info("An error happened while receiving a packet from the NOC server. Connection \
                 to NOC server was lost.")
                 # Try to reconnect if connection to NOC server was lost
@@ -161,7 +188,7 @@ class Nocdisplay(object):
         Changes tab on the browser to the specified tab number.
         '''
 
-        logging.debug("Switching tabs to tab number %d: %s", tabNumber, self.dashBoards[tabNumber])
+        logging.debug("Switching tabs to tab number %d: %s", tabNumber, self.dashboards[tabNumber])
         self.do_thread_work(self.reload_and_focus_tab, browser, tabNumber)
 
     def cycle_tabs(self, browser=None):
@@ -171,7 +198,7 @@ class Nocdisplay(object):
 
         while self.run_thread:
             # Loop through dashboards-tabs
-            for i in range(len(self.dashBoards) - 1, -1, -1):
+            for i in range(len(self.dashboards) - 1, -1, -1):
                 time.sleep(self.cycleFrequency)
                 self.change_tab(i, browser)
 
@@ -203,7 +230,7 @@ class Nocdisplay(object):
         else:
             logging.debug('OKTA login not found')
 
-    @TODO: Put these things on a common place.
+    # TODO Put these things on a common place.
     def do_thread_work(self, function, *args):
         GObject.idle_add(function, *args)
 
@@ -213,27 +240,27 @@ class Nocdisplay(object):
     def run(self):
         logging.info("Starting NOCDisplay...")
 
-        # Connect to NOC Server
-        if self.connect_to_noc_server():
+        # Connect to NOC Server and send NOC profile
+        if self.connect_to_noc_server() and self.send_noc_profile():
 
             # Create the Browser
             Gtk.init(sys.argv)
             browser = Browser()
 
-
-            # Start the Receiver Processor Thread
-            receiverThread = Thread(target=self.receiverProcessor, args=(browser,))
-            receiverThread.start()
-
             # Start the tab/dashboard cycle thread
             cycleTabThread = Thread(target=self.cycle_tabs, args=(browser,))
-            cycleTabThread.start()
+            cycleTabThread.setDaemon(True)
+
+            # Start the Receiver Processor Thread
+            receiverThread = Thread(target=self.receiverProcessor, args=(browser, cycleTabThread))
+            receiverThread.start()
 
             # Start the UI
             Gtk.main()
 
             # Close the application if GTK quit
             logging.info("Closing the application...")
+            self.stop_threads()
             self.client.shutdown(socket.SHUT_RDWR)
             self.client.close()
             logging.debug("Closed socket.")
