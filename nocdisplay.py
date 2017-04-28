@@ -205,6 +205,7 @@ class Nocdisplay(object):
     def load_url_in_tab(self, browser, tabIndex, url):
         browser.tabs[tabIndex][0].load_url(url)
         self.okta_login(browser, tabIndex)
+        self.grafana_login(browser, tabIndex)
 
     def new_tab(self, browser):
         browser.open_new_tab()
@@ -218,6 +219,8 @@ class Nocdisplay(object):
         # while browser.tabs[tabIndex][0].webview.get_load_status() != WebKit.LoadStatus.WEBKIT_LOAD_FINISHED:
         time.sleep(5)
         self.okta_login(browser, tabIndex)
+        time.sleep(10)
+        self.grafana_login(browser, tabIndex)
         browser.notebook.set_current_page(tabIndex)
 
     def okta_login(self, browser, tabIndex):
@@ -229,6 +232,19 @@ class Nocdisplay(object):
             browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('credentials').submit();")
         else:
             logging.debug('OKTA login not found')
+
+    def grafana_login(self, browser, tabIndex):
+        doc = browser.tabs[tabIndex][0].get_html()
+        print doc
+        if 'username' in doc and 'password' in doc:
+            logging.debug('Grafana login found')
+            browser.tabs[tabIndex][0].webview.execute_script("document.forms['loginForm'].elements['username'].value='{0}';".format(self.user))
+            browser.tabs[tabIndex][0].webview.execute_script("$(document.forms['loginForm'].elements['username']).trigger('change')")
+            browser.tabs[tabIndex][0].webview.execute_script("document.forms['loginForm'].elements['password'].value='{0}';".format(self.password))
+            browser.tabs[tabIndex][0].webview.execute_script("$(document.forms['loginForm'].elements['password']).trigger('change')")
+            browser.tabs[tabIndex][0].webview.execute_script("$(document.forms['loginForm'].getElementsByTagName('button')).click();")
+        else:
+            logging.debug('Grafana login not found')
 
     # TODO Put these things on a common place.
     def do_thread_work(self, function, *args):
