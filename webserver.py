@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, abort
 import random
 import os
 import binascii
@@ -15,16 +15,19 @@ bind_window = None
 bind_number = None
 bind_token  = None
 
+# CONSTANT VALUES
 NUM_CHARS_TOKEN = 30
 
+# Creates a window using GTK and displays a random int between 1 and 10k
+# This is used to bind the NOC CLI to the NOCd
 def create_window(): 
     # Generate random number to show on the screen. The user should send a request
     # with the number to bind the user to the display
     global bind_number
-    bind_number = random.randint(1, 1000)
+    bind_number = random.randint(1, 10000)
     global bind_window 
     bind_window = Gtk.Window()
-    label = Gtk.Label("<span size=\"600000\">" + str(bind_number) + "</span>")
+    label = Gtk.Label("<span size=\"400000\">" + str(bind_number) + "</span>")
     label.set_use_markup(True)
     bind_window.add(label)
     bind_window.show_all()
@@ -32,23 +35,28 @@ def create_window():
     gtk_thread.setDaemon(True)
     gtk_thread.start()
 
+# Generates a random token with NUM_CHARS_TOKEN characters
 def generate_token():
     global NUM_CHARS_TOKEN
     return binascii.hexlify(os.urandom(NUM_CHARS_TOKEN))
 
+# Verifies the provided token
+def verify_token(token=None):
+    global bind_token
+    if token == bind_token:
+      return True
+    else:
+      return False
 
-@app.route("/")
-def hello():
-    return "Hello World!"
-
-
+# Endpoint to request the NOCd to bind to the requesting NOC CLI
 @app.route("/bind-noc-display-request")
 def bind_noc_display_request():
     create_window()
     global bind_token
     bind_token = generate_token()
-    return bind_token
+    return "Request received. Please provide displayed bind number to receive auth token."
 
+# Endpoint to reply to the NOCd with the provided token and random bind number
 @app.route("/bind-noc-display/te-<int:random>")
 def bind_noc_display_reply(random):
 
@@ -58,14 +66,21 @@ def bind_noc_display_reply(random):
     global bind_window
     global bind_number
     global bind_token
-    print request.headers['Authorization']
-    if random == bind_number and bind_token == request.headers['Authorization']:
+
+    if random == bind_number:
       bind_window.destroy()
       Gtk.main_quit()
-      return "NOC Display bound to NOC CLI."
-      
-    return "Incorrect bind number."
+      return bind_token, 200
+    
+    else:
+      abort(401)  
 
+# Endpoint to stop the cycle
+@app.route("/stop-cycle")
+def stop_cycle()
+    
+    # Check provided token
+    verify_token(request.headers)
 
 if __name__ == "__main__":
     app.run()

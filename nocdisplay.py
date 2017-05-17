@@ -1,4 +1,5 @@
 import logging
+import requests
 import socket
 import struct
 import sys
@@ -70,6 +71,7 @@ class Nocdisplay(object):
         self.profile = profile
         self.cycleFrequency = cycleFrequency
         self.run_thread = True
+        self.okta_session_token = None
 
     def set_dashboards(self, dashboards=None):
         self.dashboards = dashboards
@@ -203,9 +205,7 @@ class Nocdisplay(object):
                 self.change_tab(i, browser)
 
     def load_url_in_tab(self, browser, tabIndex, url):
-        browser.tabs[tabIndex][0].load_url(url)
-        self.okta_login(browser, tabIndex)
-        self.grafana_login(browser, tabIndex)
+        self.okta_login(browser, tabIndex, url)
 
     def new_tab(self, browser):
         browser.open_new_tab()
@@ -214,37 +214,35 @@ class Nocdisplay(object):
         browser.close_current_tab()
 
     def reload_and_focus_tab(self, browser, tabIndex):
-        browser.reload_tab(tabIndex)
+        # browser.reload_tab(tabIndex)
         # This doesn't seem to work, the load status never changes
         # while browser.tabs[tabIndex][0].webview.get_load_status() != WebKit.LoadStatus.WEBKIT_LOAD_FINISHED:
         time.sleep(5)
-        self.okta_login(browser, tabIndex)
+        self.okta_login(browser, tabIndex, self.dashboards[tabIndex])
         time.sleep(10)
-        self.grafana_login(browser, tabIndex)
         browser.notebook.set_current_page(tabIndex)
 
-    def okta_login(self, browser, tabIndex):
-        doc = browser.tabs[tabIndex][0].get_html()
-        if 'user-signin' in doc and 'pass-signin' in doc:
-            logging.debug('OKTA login found')
-            browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('user-signin').value='{0}';".format(self.user))
-            browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('pass-signin').value='{0}';".format(self.password))
-            browser.tabs[tabIndex][0].webview.execute_script("document.getElementById('credentials').submit();")
-        else:
-            logging.debug('OKTA login not found')
-
-    def grafana_login(self, browser, tabIndex):
-        doc = browser.tabs[tabIndex][0].get_html()
-        print doc
-        if 'username' in doc and 'password' in doc:
-            logging.debug('Grafana login found')
-            browser.tabs[tabIndex][0].webview.execute_script("document.forms['loginForm'].elements['username'].value='{0}';".format(self.user))
-            browser.tabs[tabIndex][0].webview.execute_script("$(document.forms['loginForm'].elements['username']).trigger('change')")
-            browser.tabs[tabIndex][0].webview.execute_script("document.forms['loginForm'].elements['password'].value='{0}';".format(self.password))
-            browser.tabs[tabIndex][0].webview.execute_script("$(document.forms['loginForm'].elements['password']).trigger('change')")
-            browser.tabs[tabIndex][0].webview.execute_script("$(document.forms['loginForm'].getElementsByTagName('button')).click();")
-        else:
-            logging.debug('Grafana login not found')
+    def get_okta_session_token(self, browser, tabIndex):
+        tab_url = browser.tabs[tabIndex][0].get_url()
+        if tab_url and 'okta.com/login/login.htm' in tab_url:
+            headers = {"Accept":"application/json", "content-Type":"application/json"}
+            data = json.dumps({
+  			"username": self.user,
+  			"password": self.password,
+  			"options": {
+				    "multiOptionalFactorEnroll": False,
+				    "warnBeforePasswordExpired": False
+				}
+	})
+            reply = requests.post('https://thousandeyes.okta.com/api/v1/authn', data=data, headers=headers)
+            okta_auth_reply = reply.json()
+            self.okta_session_token = okta_auth_reply['sessionToken']
+        
+        return self.okta_session_token
+    
+    def okta_login(self, browser, tabIndex, url):
+        session_token = self.get_okta_session_token(browser, tabIndex)
+        browser.tabs[tabIndex][0].load_url("https://thousandeyes.okta.com/login/sessionCookieRedirect?token={0}&redirectUrl={1}".format(session_token, url))        
 
     # TODO Put these things on a common place.
     def do_thread_work(self, function, *args):
