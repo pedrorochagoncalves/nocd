@@ -214,12 +214,14 @@ class Nocdisplay(object):
         browser.close_current_tab()
 
     def reload_and_focus_tab(self, browser, tabIndex):
-        # browser.reload_tab(tabIndex)
+        browser.reload_tab(tabIndex)
         # This doesn't seem to work, the load status never changes
         # while browser.tabs[tabIndex][0].webview.get_load_status() != WebKit.LoadStatus.WEBKIT_LOAD_FINISHED:
         time.sleep(5)
-        self.okta_login(browser, tabIndex, self.dashboards[tabIndex])
-        time.sleep(10)
+        tab_url = browser.tabs[tabIndex][0].get_url()
+        if tab_url and 'okta.com/login/login.htm' in tab_url:
+            self.okta_login(browser, tabIndex, self.dashboards[tabIndex])
+        time.sleep(5)
         browser.notebook.set_current_page(tabIndex)
 
     def get_okta_session_token(self, browser, tabIndex):
