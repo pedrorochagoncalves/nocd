@@ -150,19 +150,19 @@ class Browser(Gtk.Window):
         tab.webview.connect("title-changed", self._title_changed)
         return tab
 
-    def reload_and_focus_tab(self, tab_index, url):
+    def _reload_and_focus_tab(self, tab_index, url):
         self.tabs[tab_index][0].reload_tab(url)
         time.sleep(5)
         self.notebook.set_current_page(tab_index)
 
-    def close_current_tab(self):
+    def _close_current_tab(self):
         if self.notebook.get_n_pages() == 1:
             return
         page = self.notebook.get_current_page()
         current_tab = self.tabs.pop(page)
         self.notebook.remove(current_tab[0])
 
-    def open_new_tab(self):
+    def _open_new_tab(self):
         current_page = self.notebook.get_current_page()
         page_tuple = (self._create_tab(), Gtk.Label("New Tab"))
         self.tabs.insert(current_page + 1, page_tuple)
@@ -180,8 +180,8 @@ class Browser(Gtk.Window):
 
     def _key_pressed(self, widget, event):
         modifiers = Gtk.accelerator_get_default_mod_mask()
-        mapping = {Gdk.KEY_w: self.close_current_tab,
-                   Gdk.KEY_t: self.open_new_tab,
+        mapping = {Gdk.KEY_w: self._close_current_tab,
+                   Gdk.KEY_t: self._open_new_tab,
                    Gdk.KEY_l: self._focus_url_bar,
                    Gdk.KEY_f: self._raise_find_dialog,
                    Gdk.KEY_q: Gtk.main_quit}
@@ -190,3 +190,14 @@ class Browser(Gtk.Window):
                 and event.keyval in mapping:
             mapping[event.keyval]()
 
+    def load_url_in_tab(self, tab_index, url):
+        self.tabs[tab_index][0].load_url(url)
+
+    def reload_url_in_tab(self, tab_index, url):
+        self._reload_and_focus_tab(tab_index, url)
+
+    def new_tab(self):
+        self._open_new_tab()
+
+    def close_tab(self):
+        self._close_current_tab()

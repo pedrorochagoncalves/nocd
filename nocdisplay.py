@@ -150,22 +150,22 @@ class Nocdisplay(object):
 
                     # Close all opened tabs
                     for num_tabs in range(self.num_tabs - 1):
-                        self.do_thread_work(self.close_tab, browser)
+                        GObject.idle_add(browser.close_tab)
                         self.num_tabs -= 1
 
                     # Open new tabs
                     for num_tabs in range(len(self.dashboards) - self.num_tabs):
-                        self.do_thread_work(self.new_tab, browser)
+                        GObject.idle_add(browser.new_tab)
                         self.num_tabs += 1
 
                     # Open all dashboards
                     for i in range(len(self.dashboards)):
-                        self.do_thread_work(self.load_url_in_tab, browser, i, self.dashboards[i])
+                        GObject.idle_add(browser.load_url_in_tab, i, self.dashboards[i])
 
                     logging.debug("Opened %i tabs.", self.num_tabs)
 
                     # Switch to first tab
-                    self.do_thread_work(self.reload_and_focus_tab, browser, 0, self.dashboards[0])
+                    GObject.idle_add(browser.reload_url_in_tab, 0, self.dashboards[0])
 
                     # Check if cycle tab thread is alive. If not, start it
                     if cycleTabThread.isAlive() is False:
@@ -187,40 +187,16 @@ class Nocdisplay(object):
                         logging.info('Sleeping for 30 seconds...')
                         time.sleep(30)
 
-    def change_tab(self, tabNumber=None, browser=None):
-        '''
-        Changes tab on the browser to the specified tab number.
-        '''
-
-        logging.debug("Switching tabs to tab number %d: %s", tabNumber, self.dashboards[tabNumber])
-        self.do_thread_work(self.reload_and_focus_tab, browser, tabNumber, self.dashboards[tabNumber])
-
     def cycle_tabs(self, browser=None):
-        '''
+        """
         Cycles through the dashboards/tabs
-        '''
-
+        """
         while self.run_thread:
             # Loop through dashboards-tabs
             for i in range(len(self.dashboards) - 1, -1, -1):
                 time.sleep(self.cycleFrequency)
-                self.change_tab(i, browser)
-
-    def load_url_in_tab(self, browser, tabIndex, url):
-        browser.tabs[tabIndex][0].load_url(url)
-
-    def new_tab(self, browser):
-        browser.open_new_tab()
-
-    def close_tab(self, browser):
-        browser.close_current_tab()
-
-    def reload_and_focus_tab(self, browser, tabIndex, url):
-        browser.reload_and_focus_tab(tabIndex, url)
-
-    # TODO Put these things on a common place.
-    def do_thread_work(self, function, *args):
-        GObject.idle_add(function, *args)
+                logging.debug("Switching tabs to tab number %d: %s", i, self.dashboards[i])
+                GObject.idle_add(browser.reload_url_in_tab, i, self.dashboards[i])
 
     def stop_threads(self):
         self.run_thread = False
