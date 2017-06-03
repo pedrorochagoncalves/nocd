@@ -15,8 +15,15 @@ bind_window = None
 bind_number = None
 bind_token  = None
 
+# global var
+
 # CONSTANT VALUES
 NUM_CHARS_TOKEN = 30
+
+# Sets the NOCd instance
+def set_nocd(nocdisplay):
+    global nocd
+    nocd = nocdisplay
 
 # Creates a window using GTK and displays a random int between 1 and 10k
 # This is used to bind the NOC CLI to the NOCd
@@ -77,10 +84,20 @@ def bind_noc_display_reply(random):
 
 # Endpoint to stop the cycle
 @app.route("/stop-cycle")
-def stop_cycle()
+def stop_cycle():
     
     # Check provided token
     verify_token(request.headers)
 
-if __name__ == "__main__":
-    app.run()
+# Endpoint to start NOCd
+@app.route("/start-nocd")
+def start_nocd():
+
+    # Check provided token
+    if not verify_token(request.headers):
+      abort(401)
+
+    
+
+#if __name__ == "__main__":
+#    app.run()

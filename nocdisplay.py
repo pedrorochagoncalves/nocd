@@ -1,3 +1,5 @@
+from flask import Flask, request
+from flask_restful import Resource, Api
 import logging
 import requests
 import socket
@@ -60,7 +62,7 @@ class Nocdisplay(object):
         self.port = int(port)
 
         if 'user' in self.config and 'password' in self.config:
-            self.user = self.config['user']
+            self.username = self.config['user']
             self.password = self.config['password']
         else:
             logging.critical("No login credentials for OKTA provided in config file. Exiting...")
@@ -163,7 +165,7 @@ class Nocdisplay(object):
                     logging.debug("Opened %i tabs.", self.num_tabs)
 
                     # Switch to first tab
-                    self.do_thread_work(self.reload_and_focus_tab, browser, 0)
+                    self.do_thread_work(self.reload_and_focus_tab, browser, 0, self.dashboards[0])
 
                     # Check if cycle tab thread is alive. If not, start it
                     if cycleTabThread.isAlive() is False:
@@ -191,7 +193,7 @@ class Nocdisplay(object):
         '''
 
         logging.debug("Switching tabs to tab number %d: %s", tabNumber, self.dashboards[tabNumber])
-        self.do_thread_work(self.reload_and_focus_tab, browser, tabNumber)
+        self.do_thread_work(self.reload_and_focus_tab, browser, tabNumber, self.dashboards[tabNumber])
 
     def cycle_tabs(self, browser=None):
         '''
@@ -205,7 +207,7 @@ class Nocdisplay(object):
                 self.change_tab(i, browser)
 
     def load_url_in_tab(self, browser, tabIndex, url):
-        self.okta_login(browser, tabIndex, url)
+        browser.tabs[tabIndex][0].load_url(url)
 
     def new_tab(self, browser):
         browser.open_new_tab()
@@ -213,38 +215,8 @@ class Nocdisplay(object):
     def close_tab(self, browser):
         browser.close_current_tab()
 
-    def reload_and_focus_tab(self, browser, tabIndex):
-        browser.reload_tab(tabIndex)
-        # This doesn't seem to work, the load status never changes
-        # while browser.tabs[tabIndex][0].webview.get_load_status() != WebKit.LoadStatus.WEBKIT_LOAD_FINISHED:
-        time.sleep(5)
-        tab_url = browser.tabs[tabIndex][0].get_url()
-        if tab_url and 'okta.com/login/login.htm' in tab_url:
-            self.okta_login(browser, tabIndex, self.dashboards[tabIndex])
-        time.sleep(5)
-        browser.notebook.set_current_page(tabIndex)
-
-    def get_okta_session_token(self, browser, tabIndex):
-        tab_url = browser.tabs[tabIndex][0].get_url()
-        if tab_url and 'okta.com/login/login.htm' in tab_url:
-            headers = {"Accept":"application/json", "content-Type":"application/json"}
-            data = json.dumps({
-  			"username": self.user,
-  			"password": self.password,
-  			"options": {
-				    "multiOptionalFactorEnroll": False,
-				    "warnBeforePasswordExpired": False
-				}
-	})
-            reply = requests.post('https://thousandeyes.okta.com/api/v1/authn', data=data, headers=headers)
-            okta_auth_reply = reply.json()
-            self.okta_session_token = okta_auth_reply['sessionToken']
-        
-        return self.okta_session_token
-    
-    def okta_login(self, browser, tabIndex, url):
-        session_token = self.get_okta_session_token(browser, tabIndex)
-        browser.tabs[tabIndex][0].load_url("https://thousandeyes.okta.com/login/sessionCookieRedirect?token={0}&redirectUrl={1}".format(session_token, url))        
+    def reload_and_focus_tab(self, browser, tabIndex, url):
+        browser.reload_and_focus_tab(tabIndex, url)
 
     # TODO Put these things on a common place.
     def do_thread_work(self, function, *args):
@@ -261,7 +233,7 @@ class Nocdisplay(object):
 
             # Create the Browser
             Gtk.init(sys.argv)
-            browser = Browser()
+            browser = Browser(self.username, self.password)
 
             # Start the tab/dashboard cycle thread
             cycleTabThread = Thread(target=self.cycle_tabs, args=(browser,))

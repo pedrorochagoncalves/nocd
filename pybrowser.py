@@ -4,10 +4,13 @@ import gi.repository
 gi.require_version('Gtk', '3.0')
 gi.require_version('WebKit', '3.0')
 from gi.repository import Gtk, Gdk, WebKit
+import json
+import requests
+import time
 
 
 class BrowserTab(Gtk.VBox):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, username, password, *args, **kwargs):
         super(BrowserTab, self).__init__(*args, **kwargs)
 
         self.webview = WebKit.WebView()
@@ -31,12 +34,26 @@ class BrowserTab(Gtk.VBox):
         self.pack_start(scrolled_window, True, True, 0)
         self.pack_start(find_box, False, False, 0)
 
+        self.username = username
+        self.password = password
+
         scrolled_window.show_all()
 
     def load_url(self, url):
         if "://" not in url:
             url = "http://" + url
         self.webview.load_uri(url)
+        time.sleep(2)
+        if self.needs_okta_login():
+            self.log_in_to_okta(url)
+
+    def reload_tab(self, url):
+        if "://" not in url:
+            url = "http://" + url
+        self.webview.reload()
+        time.sleep(2)
+        if self.needs_okta_login():
+            self.log_in_to_okta(url)
 
     def get_html(self):
         self.webview.execute_script('oldtitle=document.title;document.title=document.documentElement.innerHTML;')
@@ -49,10 +66,41 @@ class BrowserTab(Gtk.VBox):
         print url
         return url
 
+    def get_okta_session_token(self):
+        headers = {"Accept": "application/json", "content-Type": "application/json"}
+        data = json.dumps({
+            "username": self.username,
+            "password": self.password,
+            "options": {
+                "multiOptionalFactorEnroll": False,
+                "warnBeforePasswordExpired": False
+            }
+        })
+        reply = requests.post('https://thousandeyes.okta.com/api/v1/authn', data=data, headers=headers)
+        okta_auth_reply = reply.json()
+
+        return okta_auth_reply['sessionToken']
+
+    def log_in_to_okta(self, url):
+        session_token = self.get_okta_session_token()
+        self.webview.load_uri(
+            "https://thousandeyes.okta.com/login/sessionCookieRedirect?token={0}&redirectUrl={1}".format(session_token,
+                                                                                                         url))
+    def needs_okta_login(self):
+        tab_url = self.get_url()
+        if tab_url and 'okta.com/login/login.htm' in tab_url:
+            return True
+        else:
+            return False
+
 
 class Browser(Gtk.Window):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, username, password, *args, **kwargs):
         super(Browser, self).__init__(*args, **kwargs)
+
+        # OKTA credentials
+        self.username = username
+        self.password = password
 
         # create notebook and tabs
         self.notebook = Gtk.Notebook()
@@ -98,12 +146,14 @@ class Browser(Gtk.Window):
             counter += 1
 
     def _create_tab(self):
-        tab = BrowserTab()
+        tab = BrowserTab(self.username, self.password)
         tab.webview.connect("title-changed", self._title_changed)
         return tab
 
-    def reload_tab(self, index):
-        self.tabs[index][0].webview.reload()
+    def reload_and_focus_tab(self, tab_index, url):
+        self.tabs[tab_index][0].reload_tab(url)
+        time.sleep(5)
+        self.notebook.set_current_page(tab_index)
 
     def close_current_tab(self):
         if self.notebook.get_n_pages() == 1:
@@ -130,8 +180,7 @@ class Browser(Gtk.Window):
 
     def _key_pressed(self, widget, event):
         modifiers = Gtk.accelerator_get_default_mod_mask()
-        mapping = {Gdk.KEY_r: self.reload_tab,
-                   Gdk.KEY_w: self.close_current_tab,
+        mapping = {Gdk.KEY_w: self.close_current_tab,
                    Gdk.KEY_t: self.open_new_tab,
                    Gdk.KEY_l: self._focus_url_bar,
                    Gdk.KEY_f: self._raise_find_dialog,
@@ -140,3 +189,4 @@ class Browser(Gtk.Window):
         if event.state & modifiers == Gdk.ModifierType.CONTROL_MASK \
                 and event.keyval in mapping:
             mapping[event.keyval]()
+
