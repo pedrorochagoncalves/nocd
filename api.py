@@ -1,8 +1,14 @@
 from flask import Flask, request, abort
 import random
 import os
+import sys
 import binascii
+import argparse
 import gi
+import nocd
+import nocpusher
+import pyinotify
+import fileEventHandler
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 from threading import Thread
@@ -15,15 +21,9 @@ bind_window = None
 bind_number = None
 bind_token  = None
 
-# global var
 
 # CONSTANT VALUES
 NUM_CHARS_TOKEN = 30
-
-# Sets the NOCd instance
-def set_nocd(nocdisplay):
-    global nocd
-    nocd = nocdisplay
 
 # Creates a window using GTK and displays a random int between 1 and 10k
 # This is used to bind the NOC CLI to the NOCd
@@ -45,7 +45,7 @@ def create_window():
 # Generates a random token with NUM_CHARS_TOKEN characters
 def generate_token():
     global NUM_CHARS_TOKEN
-    return binascii.hexlify(os.urandom(NUM_CHARS_TOKEN))
+    return str(binascii.hexlify(os.urandom(NUM_CHARS_TOKEN)))
 
 # Verifies the provided token
 def verify_token(token=None):
@@ -85,19 +85,99 @@ def bind_noc_display_reply(random):
 # Endpoint to stop the cycle
 @app.route("/stop-cycle")
 def stop_cycle():
-    
     # Check provided token
-    verify_token(request.headers)
+    if not verify_token(str(request.headers['Token'])):
+        abort(401)
 
-# Endpoint to start NOCd
-@app.route("/start-nocd")
-def start_nocd():
+    # Stop the cycle
+    noc.stop_cycle_tab_thread()
+    return 'Stopped cycling of dashboards.', 200
+
+# Endpoint to start the cycle
+@app.route("/start-cycle")
+def start_cycle():
+    # Check provided token
+    if not verify_token(request.headers):
+        abort(401)
+
+    # Stop the cycle
+    noc.start_cycle_tab_thread()
+    return 200
+
+# Endpoint to open new dashboard
+@app.route("/new-dashboard/<url>")
+def new_dashboard(url):
 
     # Check provided token
     if not verify_token(request.headers):
-      abort(401)
+        abort(401)
+
+    noc.open_dashboard(url)
+    return 200
+
+# # Endpoint to start NOCd
+# @app.route("/start-nocd")
+# def start_nocd():
+#
+#     # Check provided token
+#     if not verify_token(request.headers):
+#       abort(401)
+#
+#     # Start NOCd
+#     noc_thread.start()
 
     
 
-#if __name__ == "__main__":
-#    app.run()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='NOCanator 3000 - Keeping OPS teams in Sync.')
+    parser.add_argument('--config', dest='config', action='store', default='config.json',
+                        help='Path to JSON config file.')
+    parser.add_argument('-s', dest='server', action='store_true', default=False,
+                        help='Sets the app to run as the server (the dashboard pusher). Defaults to False (client mode)')
+    parser.add_argument('-a', dest='host', action='store',
+                        help='Sets the server address for the Nocpusher. Required if using client mode.')
+    parser.add_argument('-p', dest='port', action='store', default=4455,
+                        help='Sets the server port for the Nocpusher. Defaults to port 4455.')
+    parser.add_argument('--profile', dest='profile', action='store',
+                        help='Sets the NOC profile. Select the dashboards to display.Ex: SRE or NET')
+    parser.add_argument('--cycle-freq', dest='cycleFrequency', action='store', default=60,
+                        help='Sets the dashboard cycle frequency. Defaults to 60 seconds.')
+    args = parser.parse_args()
+
+    if args.host and not args.profile and not args.cycleFrequency:
+        parser.error("NOCDisplays requires NOC profile and cycle frequency. "
+                     "Add --profile with SRE and --cycle-freq with 60 (s) for example.")
+        sys.exit(1)
+
+    # Start the app
+    if args.server is True:
+        noc = nocpusher.Nocpusher(config_file=args.config)
+        # The watch manager stores the watches and provides operations on watches
+        wm = pyinotify.WatchManager()
+        mask = pyinotify.IN_MODIFY  # watched events
+        file_event_handler = fileEventHandler.EventHandler(noc)
+        notifier = pyinotify.ThreadedNotifier(wm, file_event_handler)
+        # Start the notifier from a new thread, without doing anything as no directory or
+        # file are currently monitored yet.
+        notifier.start()
+        # Start watching a path
+        wdd = wm.add_watch(args.config, mask)
+        # Run the server's main method
+        noc.run()
+        # Stop the notifier's thread
+        notifier.stop()
+    else:
+
+        # Create NOCd instance
+        noc = nocd.Nocd(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
+                        cycleFrequency=float(args.cycleFrequency))
+
+        # Create thread for API server
+        api_thread = Thread(target=app.run)
+        api_thread.setDaemon(True)
+        api_thread.start()
+
+        # Start the NOCd server
+        noc.run()
+
+    sys.exit(0)

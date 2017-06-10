@@ -8,7 +8,6 @@ import json
 import requests
 import time
 
-
 class BrowserTab(Gtk.VBox):
     def __init__(self, username, password, *args, **kwargs):
         super(BrowserTab, self).__init__(*args, **kwargs)

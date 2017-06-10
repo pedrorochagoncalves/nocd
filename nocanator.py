@@ -4,7 +4,7 @@ import logging
 import nocpusher
 import sys
 import argparse
-import nocdisplay
+import nocd
 import fileEventHandler
 import pyinotify
 
@@ -52,8 +52,8 @@ class Nocanator():
             # Stop the notifier's thread
             notifier.stop()
         else:
-            noc = nocdisplay.Nocdisplay(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
-                                        cycleFrequency=float(args.cycleFrequency))
+            noc = nocd.Nocd(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
+                            cycleFrequency=float(args.cycleFrequency))
             noc.run()
 
         sys.exit(0)
