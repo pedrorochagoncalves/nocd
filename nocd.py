@@ -1,7 +1,5 @@
-from flask import Flask, request
-from flask_restful import Resource, Api
 import logging
-import requests
+import random
 import socket
 import struct
 import sys
@@ -77,6 +75,7 @@ class Nocd(object):
         self.cycleFrequency = cycleFrequency
         self.run_receiver_processor_thread = True
         self.run_cycle_tab_thread = True
+        self.bind_window = None
 
     def init_browser(self):
         self.browser = Browser(self.username, self.password)
@@ -225,6 +224,28 @@ class Nocd(object):
 
     def stop_receiver_processor_thread(self):
         self.run_receiver_processor_thread = False
+
+    def create_bind_window(self):
+        """
+        Creates a GTK window with a random int to bind a user to a NOCd instance
+        :return: the random generated int
+        """
+        bind_number = random.randint(1, 10000)
+        self.bind_window = Gtk.Window()
+        label = Gtk.Label("<span size=\"400000\">" + str(bind_number) + "</span>")
+        label.set_use_markup(True)
+        self.bind_window.add(label)
+        GObject.idle_add(self.bind_window.show_all)
+
+        return bind_number
+
+    def destroy_bind_window(self):
+        """
+        Destroys the GTK window created to show a random int and bind a user to a NOCd instance
+        :return:
+        """
+        GObject.idle_add(self.bind_window.destroy)
+
 
     def run(self):
         logging.info("Starting NOCDisplay...")
