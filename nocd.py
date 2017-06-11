@@ -151,12 +151,14 @@ class Nocd(object):
                     self.set_dashboards(p.data)
 
                     # Close all opened tabs
-                    for num_tabs in range(self.num_tabs - 1):
+                    for num_tabs in range(self.num_tabs):
+                        if self.num_tabs == 1:
+                            break
                         GObject.idle_add(self.browser.close_tab)
                         self.num_tabs -= 1
 
                     # Open new tabs
-                    for num_tabs in range(len(self.dashboards) - self.num_tabs):
+                    for num_tabs in range(len(self.dashboards) - 1):
                         GObject.idle_add(self.browser.new_tab)
                         self.num_tabs += 1
 
@@ -210,14 +212,13 @@ class Nocd(object):
         self.run_cycle_tab_thread = False
 
     def open_dashboard(self, url):
-        # Destroy the current browser
-        del self.browser
 
-        # Create a new browser
-        self.init_browser()
-
-        # Create new tab
-        GObject.idle_add(self.browser.new_tab)
+        # Close all tabs except first one
+        for num_tabs in range(self.num_tabs-1):
+            if self.num_tabs == 1:
+                break
+            GObject.idle_add(self.browser.close_tab)
+            self.num_tabs -= 1
 
         # Open new dashboard
         GObject.idle_add(self.browser.load_url_in_tab, 0, url)
