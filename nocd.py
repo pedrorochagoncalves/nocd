@@ -75,6 +75,7 @@ class Nocd(object):
         self.cycleFrequency = cycleFrequency
         self.run_receiver_processor_thread = True
         self.run_cycle_tab_thread = True
+        self.cycle_tab_thread = None
         self.bind_window = None
 
     def init_browser(self):
@@ -137,7 +138,7 @@ class Nocd(object):
 
         return p
 
-    def receiverProcessor(self, cycleTabThread=None):
+    def receiverProcessor(self):
         """
         Connects to NOC server, receives and processes packets from NOC server.
         """
@@ -172,8 +173,8 @@ class Nocd(object):
                     GObject.idle_add(self.browser.reload_url_in_tab, 0, self.dashboards[0])
 
                     # Check if cycle tab thread is alive. If not, start it
-                    if cycleTabThread.isAlive() is False:
-                        cycleTabThread.start()
+                    if self.cycle_tab_thread.isAlive() is False:
+                        self.cycle_tab_thread.start()
 
                 elif p.operation == Common.SHUTDOWN:
                     logging.info('Shutting down receiver processor...')
@@ -199,19 +200,25 @@ class Nocd(object):
             # Loop through dashboards-tabs
             for i in range(len(self.dashboards) - 1, -1, -1):
                 time.sleep(self.cycleFrequency)
+                if not self.run_cycle_tab_thread:
+                    break
                 logging.debug("Switching tabs to tab number %d: %s", i, self.dashboards[i])
                 GObject.idle_add(self.browser.reload_url_in_tab, i, self.dashboards[i])
 
     def start_cycle_tab_thread(self):
-        cycleTabThread = Thread(target=self.cycle_tabs)
-        cycleTabThread.setDaemon(True)
+        self.cycle_tab_thread = Thread(target=self.cycle_tabs)
+        self.cycle_tab_thread.setDaemon(True)
         self.run_cycle_tab_thread = True
-        cycleTabThread.start()
+        self.cycle_tab_thread.start()
 
     def stop_cycle_tab_thread(self):
         self.run_cycle_tab_thread = False
 
-    def open_dashboard(self, url):
+    def clear_all_and_open_new_dashboard(self, url):
+
+        # Stop cycling dashboards
+        self.stop_cycle_tab_thread()
+        self.cycle_tab_thread.join()
 
         # Close all tabs except first one
         for num_tabs in range(self.num_tabs-1):
@@ -219,9 +226,34 @@ class Nocd(object):
                 break
             GObject.idle_add(self.browser.close_tab)
             self.num_tabs -= 1
+        del self.dashboards[:]
 
         # Open new dashboard
         GObject.idle_add(self.browser.load_url_in_tab, 0, url)
+        # Add it to the list of dashboards
+        self.dashboards.append(url)
+
+        # Start cycling dashboards
+        self.start_cycle_tab_thread()
+
+    def add_dashboard(self, url):
+
+        # Stop cycling dashboards
+        self.stop_cycle_tab_thread()
+        self.cycle_tab_thread.join()
+
+        # Open new tab
+        GObject.idle_add(self.browser.new_tab)
+        self.num_tabs += 1
+
+        # Load dashboard
+        GObject.idle_add(self.browser.load_url_in_tab, self.num_tabs-1, url)
+        # Add it to the list of dashboards
+        self.dashboards.append(url)
+
+        # Start cycling dashboards
+        self.start_cycle_tab_thread()
+
 
     def stop_receiver_processor_thread(self):
         self.run_receiver_processor_thread = False
@@ -258,11 +290,11 @@ class Nocd(object):
             Gtk.init(sys.argv)
 
             # Start the tab/dashboard cycle thread
-            cycleTabThread = Thread(target=self.cycle_tabs)
-            cycleTabThread.setDaemon(True)
+            self.cycle_tab_thread = Thread(target=self.cycle_tabs)
+            self.cycle_tab_thread.setDaemon(True)
 
             # Start the Receiver Processor Thread
-            receiverThread = Thread(target=self.receiverProcessor, args=(cycleTabThread,))
+            receiverThread = Thread(target=self.receiverProcessor)
             receiverThread.start()
 
             # Start the UI

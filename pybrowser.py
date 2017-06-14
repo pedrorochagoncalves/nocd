@@ -162,11 +162,12 @@ class Browser(Gtk.Window):
         self.notebook.remove(current_tab[0])
 
     def _open_new_tab(self):
-        current_page = self.notebook.get_current_page()
+        # Get the last tab
+        last_page = self.notebook.get_n_pages()
         page_tuple = (self._create_tab(), Gtk.Label("New Tab"))
-        self.tabs.insert(current_page + 1, page_tuple)
-        self.notebook.insert_page(page_tuple[0], page_tuple[1], current_page + 1)
-        self.notebook.set_current_page(current_page + 1)
+        self.tabs.insert(last_page + 1, page_tuple)
+        self.notebook.insert_page(page_tuple[0], page_tuple[1], last_page + 1)
+        self.notebook.set_current_page(last_page + 1)
 
     def _focus_url_bar(self):
         current_page = self.notebook.get_current_page()

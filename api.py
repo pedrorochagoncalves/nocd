@@ -90,29 +90,26 @@ def start_cycle():
     noc.start_cycle_tab_thread()
     return 'Started cycling the dashboards', 200
 
-# Endpoint to open new dashboard
-@app.route("/new-dashboard/<url>")
-def new_dashboard(url):
+# Endpoint to clear all dashboards and open new dashboard
+@app.route("/clear-all-open-new-dashboard/<url>")
+def clear_all_and_open_new_dashboard(url):
 
     # Check provided token
     if not verify_token(request.headers['Token']):
         abort(401)
 
-    noc.open_dashboard(url)
-    return 'Opened new dashboard', 200
+    noc.clear_all_and_open_new_dashboard(url)
+    return 'Cleared all previously opened dashboards and opened requested dashboard', 200
 
-# # Endpoint to start NOCd
-# @app.route("/start-nocd")
-# def start_nocd():
-#
-#     # Check provided token
-#     if not verify_token(request.headers):
-#       abort(401)
-#
-#     # Start NOCd
-#     noc_thread.start()
+# Endpoint to add a new dashboard to the current list
+@app.route("/add-dashboard/<url>")
+def add_dashboard(url):
+    # Check provided token
+    if not verify_token(request.headers['Token']):
+        abort(401)
 
-    
+    noc.add_dashboard(url)
+    return 'Added requested dashboard', 200
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NOCanator 3000 - Keeping OPS teams in Sync.')
