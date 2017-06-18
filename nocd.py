@@ -199,9 +199,10 @@ class Nocd(object):
         while self.run_cycle_tab_thread:
             # Loop through dashboards-tabs
             for i in range(len(self.dashboards) - 1, -1, -1):
-                time.sleep(self.cycleFrequency)
-                if not self.run_cycle_tab_thread:
-                    break
+                for j in range(int(self.cycleFrequency)):
+                    time.sleep(1)
+                    if not self.run_cycle_tab_thread:
+                        break
                 logging.debug("Switching tabs to tab number %d: %s", i, self.dashboards[i])
                 GObject.idle_add(self.browser.reload_url_in_tab, i, self.dashboards[i])
 
@@ -250,6 +251,28 @@ class Nocd(object):
         GObject.idle_add(self.browser.load_url_in_tab, self.num_tabs-1, url)
         # Add it to the list of dashboards
         self.dashboards.append(url)
+
+        # Start cycling dashboards
+        self.start_cycle_tab_thread()
+
+    def close_tab(self, tab_index):
+
+        # Check if index exists
+        if tab_index+1 > self.num_tabs:
+            return False
+        # Check if last tab
+        if tab_index == -1:
+            tab_index = self.num_tabs - 1
+
+        # Stop cycling dashboards
+        self.stop_cycle_tab_thread()
+        self.cycle_tab_thread.join()
+
+        # Close tab
+        GObject.idle_add(self.browser.close_tab, tab_index)
+        self.num_tabs -= 1
+        # Remove it from the list of dashboards
+        del(self.dashboards[tab_index])
 
         # Start cycling dashboards
         self.start_cycle_tab_thread()

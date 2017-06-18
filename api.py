@@ -111,12 +111,30 @@ def add_dashboard(url):
     noc.add_dashboard(url)
     return 'Added requested dashboard', 200
 
+# Endpoint to close last tab
+@app.route("/close-last-tab")
+def close_last_tab():
+    # Check provided token
+    if not verify_token(request.headers['Token']):
+        abort(401)
+
+    noc.close_tab(-1)
+    return 'Closed last tab', 200
+
+# Endpoint to close specific tab
+@app.route("/close-tab/<int:tab_index>")
+def close_tab(tab_index):
+    # Check provided token
+    if not verify_token(request.headers['Token']):
+        abort(401)
+
+        noc.close_tab(tab_index)
+        return "Closed tab number:{0}".format(tab_index + 1), 200
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NOCanator 3000 - Keeping OPS teams in Sync.')
     parser.add_argument('--config', dest='config', action='store', default='config.json',
                         help='Path to JSON config file.')
-    parser.add_argument('-s', dest='server', action='store_true', default=False,
-                        help='Sets the app to run as the server (the dashboard pusher). Defaults to False (client mode)')
     parser.add_argument('-a', dest='host', action='store',
                         help='Sets the server address for the Nocpusher. Required if using client mode.')
     parser.add_argument('-p', dest='port', action='store', default=4455,
@@ -133,34 +151,17 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Start the app
-    if args.server is True:
-        noc = nocpusher.Nocpusher(config_file=args.config)
-        # The watch manager stores the watches and provides operations on watches
-        wm = pyinotify.WatchManager()
-        mask = pyinotify.IN_MODIFY  # watched events
-        file_event_handler = fileEventHandler.EventHandler(noc)
-        notifier = pyinotify.ThreadedNotifier(wm, file_event_handler)
-        # Start the notifier from a new thread, without doing anything as no directory or
-        # file are currently monitored yet.
-        notifier.start()
-        # Start watching a path
-        wdd = wm.add_watch(args.config, mask)
-        # Run the server's main method
-        noc.run()
-        # Stop the notifier's thread
-        notifier.stop()
-    else:
 
-        # Create NOCd instance
-        noc = nocd.Nocd(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
-                        cycleFrequency=float(args.cycleFrequency))
+    # Create NOCd instance
+    noc = nocd.Nocd(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
+                    cycleFrequency=float(args.cycleFrequency))
 
-        # Create thread for API server
-        api_thread = Thread(target=app.run)
-        api_thread.setDaemon(True)
-        api_thread.start()
+    # Create thread for API server
+    api_thread = Thread(target=app.run)
+    api_thread.setDaemon(True)
+    api_thread.start()
 
-        # Start the NOCd server
-        noc.run()
+    # Start the NOCd server
+    noc.run()
 
     sys.exit(0)

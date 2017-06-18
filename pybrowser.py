@@ -161,6 +161,12 @@ class Browser(Gtk.Window):
         current_tab = self.tabs.pop(page)
         self.notebook.remove(current_tab[0])
 
+    def _close_tab(self, tab_index):
+        if self.notebook.get_n_pages() == 1:
+            return
+        tab = self.tabs.pop(tab_index)
+        self.notebook.remove(tab[0])
+
     def _open_new_tab(self):
         # Get the last tab
         last_page = self.notebook.get_n_pages()
@@ -199,5 +205,8 @@ class Browser(Gtk.Window):
     def new_tab(self):
         self._open_new_tab()
 
-    def close_tab(self):
-        self._close_current_tab()
+    def close_tab(self, tab_index=None):
+        if tab_index is None:
+            self._close_current_tab()
+        else:
+            self._close_tab(tab_index)
