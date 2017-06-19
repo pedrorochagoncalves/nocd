@@ -162,15 +162,16 @@ class Nocpusher(object):
                     # handle the server socket
                     socketFd, address = self.server.accept()
                     socketFd.settimeout(300)
-                    logging.info("Received client check in for host: %s. Starting NOCDisplay there.", address)
-                    self.client_socketfds.append(socketFd)
-                    self.client_addresses.append(address)
+                    logging.info("Received NOCd check in from host: %s.", address)
 
                     # Receive the NOC profile from the NOCDisplay
                     nocProfile = self.receive_noc_profile(socketFd, address)
 
                     # Send the DashBoards to the newly joined NOCDisplay
                     self.send_dashboards(socketFd, address, nocProfile)
+
+                    # Close the connection
+                    socketFd.close()
 
                 elif s == sys.stdin:
                     # handle standard input
@@ -201,7 +202,7 @@ class Nocpusher(object):
         # Now that we know how big the packet is going to be, we can receive it properly
         serializedPacket = socketFd.recv(packetSize)
         p = pickle.loads(serializedPacket)
-        logging.debug("Received NOC Profile {0} from NOC Display {0}.".format(p.data,address))
+        logging.debug("Received NOC Profile {0} from NOC Display {1}.".format(p.data,address))
 
         return p.data
 
@@ -234,37 +235,6 @@ class Nocpusher(object):
             socketFd.send(serializedPacket)
         except:
             logging.debug("Failed to send dashboards to NOCDisplay {0}. Closing client connection...".format(address))
-            socketFd.close()
-            self.client_socketfds.remove(socketFd)
-            self.client_addresses.remove(address)
-
-    def change_tab(self):
-        '''
-        Tells the NOCdisplays to change tab
-        :return:
-        '''
-        # Wait for potential NOCDisplays that connect immediately
-        time.sleep(15)
-
-        while self.run_thread:
-            # Loop through dashboards-tabs
-            for i in range(len(self.dashBoards)-1, -1, -1):
-                time.sleep(self.dashboard_frequency)
-                # Loop through the current list of NOCDisplays
-                for client, address in zip(self.client_socketfds, self.client_addresses):
-                    try:
-                        p = Packet(operation=Common.SWITCH_TAB, data=i)
-                        serializedPacket = pickle.dumps(p)
-                        # Send size of packet first
-                        client.send(struct.pack('!I', (len(serializedPacket))))
-                        # Send packet
-                        logging.debug("Telling NOCDisplays to switch to tab %d", i)
-                        client.send(serializedPacket)
-                    except:
-                        logging.info("Client %s disconnected.", address)
-                        client.close()
-                        self.client_socketfds.remove(client)
-                        self.client_addresses.remove(address)
 
 if __name__ == '__main__':
 

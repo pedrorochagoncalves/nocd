@@ -131,6 +131,16 @@ def close_tab(tab_index):
         noc.close_tab(tab_index)
         return "Closed tab number:{0}".format(tab_index + 1), 200
 
+# Endpoint to open dashboard list for the specified profile
+@app.route("/open-dashboards-for-profile/<profile>")
+def open_dashboards_for_profile(profile):
+    # Check provided token
+    if not verify_token(request.headers['Token']):
+        abort(401)
+
+    noc.open_dashboards_for_profile(profile)
+    return "Opened dashboards for profile {0}".format(profile), 200
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NOCanator 3000 - Keeping OPS teams in Sync.')
     parser.add_argument('--config', dest='config', action='store', default='config.json',

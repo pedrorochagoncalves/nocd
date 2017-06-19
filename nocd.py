@@ -73,7 +73,6 @@ class Nocd(object):
         self.client = None
         self.profile = profile
         self.cycleFrequency = cycleFrequency
-        self.run_receiver_processor_thread = True
         self.run_cycle_tab_thread = True
         self.cycle_tab_thread = None
         self.bind_window = None
@@ -124,73 +123,75 @@ class Nocd(object):
         Receives packet and returns content.
         :return: Returns packet content. Returns False if socket is closed.
         """
-        # Receive the size of the packet first
-        packetSizeByteString = self.client.recv(4)
-        if packetSizeByteString == '':
-            logging.debug('Connection to server closed.')
-            return Packet(Common.SHUTDOWN)
+        try:
+            # Receive the size of the packet first
+            packetSizeByteString = self.client.recv(4)
+            packetSize, = struct.unpack('!I', packetSizeByteString)
+            # Now that we know how big the packet is going to be, we can receive it properly
+            serializedPacket = self.client.recv(packetSize)
+            p = pickle.loads(serializedPacket)
+            logging.debug("Received packet with operation %d", p.operation)
 
-        packetSize, = struct.unpack('!I', packetSizeByteString)
-        # Now that we know how big the packet is going to be, we can receive it properly
-        serializedPacket = self.client.recv(packetSize)
-        p = pickle.loads(serializedPacket)
-        logging.debug("Received packet with operation %d", p.operation)
+            # Close socket to NOC server
+            self.client.shutdown(socket.SHUT_RDWR)
+            self.client.close()
 
-        return p
+            return p
 
-    def receiverProcessor(self):
+        except socket.error:
+            logging.info("An error happened while receiving a packet from the NOC server. Please try again.")
+            self.client.close()
+            return False
+
+
+    def receive_dashboards(self):
         """
-        Connects to NOC server, receives and processes packets from NOC server.
+        Receive dashboards from NOCpusher.
         """
-        while self.run_receiver_processor_thread:
-            try:
-                # Receive packet from NOC Server
-                p = self.receive_packet()
+        try:
+            # Receive packet from NOC Server
+            p = self.receive_packet()
 
-                # Receive new list of dashboards
-                if p.operation == Common.RECEIVE_DASHBOARDS:
-                    self.set_dashboards(p.data)
+            # Skip there's an error
+            if p is False:
+                raise socket.error
 
-                    # Close all opened tabs
-                    for num_tabs in range(self.num_tabs):
-                        if self.num_tabs == 1:
-                            break
-                        GObject.idle_add(self.browser.close_tab)
-                        self.num_tabs -= 1
+            # Receive new list of dashboards
+            if p.operation == Common.RECEIVE_DASHBOARDS:
+                self.set_dashboards(p.data)
 
-                    # Open new tabs
-                    for num_tabs in range(len(self.dashboards) - 1):
-                        GObject.idle_add(self.browser.new_tab)
-                        self.num_tabs += 1
-
-                    # Open all dashboards
-                    for i in range(len(self.dashboards)):
-                        GObject.idle_add(self.browser.load_url_in_tab, i, self.dashboards[i])
-
-                    logging.debug("Opened %i tabs.", self.num_tabs)
-
-                    # Switch to first tab
-                    GObject.idle_add(self.browser.reload_url_in_tab, 0, self.dashboards[0])
-
-                    # Check if cycle tab thread is alive. If not, start it
-                    if self.cycle_tab_thread.isAlive() is False:
-                        self.cycle_tab_thread.start()
-
-                elif p.operation == Common.SHUTDOWN:
-                    logging.info('Shutting down receiver processor...')
-                    return False
-
-            except socket.error:
-                logging.info("An error happened while receiving a packet from the NOC server. Connection \
-                to NOC server was lost.")
-                # Try to reconnect if connection to NOC server was lost
-                while True:
-                    logging.info('Reconnecting...')
-                    if self.connect_to_noc_server():
+                # Close all opened tabs
+                for num_tabs in range(self.num_tabs):
+                    if self.num_tabs == 1:
                         break
-                    else:
-                        logging.info('Sleeping for 30 seconds...')
-                        time.sleep(30)
+                    GObject.idle_add(self.browser.close_tab)
+                    self.num_tabs -= 1
+
+                # Open new tabs
+                for num_tabs in range(len(self.dashboards) - 1):
+                    GObject.idle_add(self.browser.new_tab)
+                    self.num_tabs += 1
+
+                # Open all dashboards
+                for i in range(len(self.dashboards)):
+                    GObject.idle_add(self.browser.load_url_in_tab, i, self.dashboards[i])
+
+                logging.debug("Opened %i tabs.", self.num_tabs)
+
+                # Switch to first tab
+                GObject.idle_add(self.browser.reload_url_in_tab, 0, self.dashboards[0])
+
+                # Success
+                return True
+
+            elif p.operation == Common.SHUTDOWN:
+                logging.info('Shutting down receiver processor...')
+                return False
+
+        except socket.error:
+            logging.info("An error happened while receiving a packet from the NOC server.")
+            return False
+
 
     def cycle_tabs(self):
         """
@@ -277,10 +278,6 @@ class Nocd(object):
         # Start cycling dashboards
         self.start_cycle_tab_thread()
 
-
-    def stop_receiver_processor_thread(self):
-        self.run_receiver_processor_thread = False
-
     def create_bind_window(self):
         """
         Creates a GTK window with a random int to bind a user to a NOCd instance
@@ -302,40 +299,53 @@ class Nocd(object):
         """
         GObject.idle_add(self.bind_window.destroy)
 
+    def open_dashboards_for_profile(self, profile=None):
+        """
+        Connects to the NOC server, sends the NOC profile and receives the dashboards
+        :return: True if dashboards are received, False if not
+        """
+        if not profile:
+            profile = self.profile
+
+        # Connect to NOC server
+        if self.connect_to_noc_server():
+
+            # Send NOC profile
+            if self.send_noc_profile():
+
+                # Receive dashboards
+                if self.receive_dashboards():
+                    return True
+                else:
+                    return False
+            else:
+                return False
+        else:
+            return False
 
     def run(self):
         logging.info("Starting NOCDisplay...")
 
         # Connect to NOC Server and send NOC profile
-        if self.connect_to_noc_server() and self.send_noc_profile():
+        if self.open_dashboards_for_profile():
 
             # Initialize the UI
             Gtk.init(sys.argv)
 
             # Start the tab/dashboard cycle thread
-            self.cycle_tab_thread = Thread(target=self.cycle_tabs)
-            self.cycle_tab_thread.setDaemon(True)
-
-            # Start the Receiver Processor Thread
-            receiverThread = Thread(target=self.receiverProcessor)
-            receiverThread.start()
+            self.start_cycle_tab_thread()
 
             # Start the UI
             Gtk.main()
 
             # Close the application if GTK quit
             logging.info("Closing the application...")
-            self.stop_receiver_processor_thread()
-            self.client.shutdown(socket.SHUT_RDWR)
-            self.client.close()
             logging.debug("Closed socket.")
             # Wait for the Receiver Thread
-            logging.debug("Waiting for receiver thread to stop...")
-            receiverThread.join()
             logging.debug("OK.")
 
         else:
-            logging.critical('Unable to connect to provided NOC server...Exiting.')
+            logging.critical('Failed to open dashboards for the provided profile...Exiting.')
 
         # Exit
         sys.exit(0)
