@@ -158,6 +158,8 @@ class Nocd(object):
 
             # Receive new list of dashboards
             if p.operation == Common.RECEIVE_DASHBOARDS:
+                if self.dashboards:
+                    del self.dashboards[:]
                 self.set_dashboards(p.data)
 
                 # Close all opened tabs
@@ -174,12 +176,10 @@ class Nocd(object):
 
                 # Open all dashboards
                 for i in range(len(self.dashboards)):
+                    logging.debug("Opening {0} {1}.".format(self.dashboards[i], i))
                     GObject.idle_add(self.browser.load_url_in_tab, i, self.dashboards[i])
 
                 logging.debug("Opened %i tabs.", self.num_tabs)
-
-                # Switch to first tab
-                GObject.idle_add(self.browser.reload_url_in_tab, 0, self.dashboards[0])
 
                 # Success
                 return True
@@ -304,8 +304,8 @@ class Nocd(object):
         Connects to the NOC server, sends the NOC profile and receives the dashboards
         :return: True if dashboards are received, False if not
         """
-        if not profile:
-            profile = self.profile
+        if profile:
+            self.profile = profile
 
         # Connect to NOC server
         if self.connect_to_noc_server():

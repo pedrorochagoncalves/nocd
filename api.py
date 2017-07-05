@@ -15,7 +15,7 @@ app = Flask(__name__)
 # global vars
 bind_number = None
 bind_token  = None
-DEBUG_MODE  = True
+DEBUG_MODE  = False
 
 
 # CONSTANT VALUES
@@ -167,7 +167,7 @@ if __name__ == "__main__":
                     cycleFrequency=float(args.cycleFrequency))
 
     # Create thread for API server
-    api_thread = Thread(target=app.run)
+    api_thread = Thread(target=app.run, kwargs={'host': '0.0.0.0'})
     api_thread.setDaemon(True)
     api_thread.start()
 
