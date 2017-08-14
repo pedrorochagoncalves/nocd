@@ -91,7 +91,7 @@ def start_cycle():
     return 'Started cycling the dashboards', 200
 
 # Endpoint to clear all dashboards and open new dashboard
-@app.route("/clear-all-open-new-dashboard/<url>")
+@app.route("/clear-all-open-new-dashboard/<path:url>")
 def clear_all_and_open_new_dashboard(url):
 
     # Check provided token
@@ -102,7 +102,7 @@ def clear_all_and_open_new_dashboard(url):
     return 'Cleared all previously opened dashboards and opened requested dashboard', 200
 
 # Endpoint to add a new dashboard to the current list
-@app.route("/add-dashboard/<url>")
+@app.route("/add-dashboard/<path:url>")
 def add_dashboard(url):
     # Check provided token
     if not verify_token(request.headers['Token']):
