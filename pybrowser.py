@@ -62,7 +62,7 @@ class BrowserTab(Gtk.VBox):
 
     def get_url(self):
         url = self.webview.get_uri()
-        print url
+        #print url
         return url
 
     def get_okta_session_token(self):
@@ -86,11 +86,15 @@ class BrowserTab(Gtk.VBox):
             "https://thousandeyes.okta.com/login/sessionCookieRedirect?token={0}&redirectUrl={1}".format(session_token,
                                                                                                          url))
     def needs_okta_login(self):
-        tab_url = self.get_url()
-        if tab_url and 'okta.com/login/login.htm' in tab_url:
-            return True
-        else:
-            return False
+        # Try to find the OKTA login page 3 times. If not found, give up.
+        for i in range(3):
+            tab_url = self.get_url()
+            if tab_url and 'okta.com/login/login.htm' in tab_url:
+                return True
+            time.sleep(1)
+
+        # OKTA login not found
+        return False
 
 
 class Browser(Gtk.Window):
@@ -151,7 +155,7 @@ class Browser(Gtk.Window):
 
     def _reload_and_focus_tab(self, tab_index, url):
         self.tabs[tab_index][0].reload_tab(url)
-        time.sleep(5)
+        #time.sleep(5)
         self.notebook.set_current_page(tab_index)
 
     def _close_current_tab(self):

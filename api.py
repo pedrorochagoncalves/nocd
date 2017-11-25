@@ -4,10 +4,8 @@ import sys
 import binascii
 import argparse
 import nocd
-import nocpusher
-import pyinotify
-import fileEventHandler
 from threading import Thread
+from getpass import getpass
 
 
 app = Flask(__name__)
@@ -142,29 +140,38 @@ def open_dashboards_for_profile(profile):
     return "Opened dashboards for profile {0}".format(profile), 200
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='NOCanator 3000 - Keeping OPS teams in Sync.')
-    parser.add_argument('--config', dest='config', action='store', default='config.json',
-                        help='Path to JSON config file.')
-    parser.add_argument('-a', dest='host', action='store',
-                        help='Sets the server address for the Nocpusher. Required if using client mode.')
-    parser.add_argument('-p', dest='port', action='store', default=4455,
-                        help='Sets the server port for the Nocpusher. Defaults to port 4455.')
+    parser = argparse.ArgumentParser(description='NOCd - A simple app to rotate dashboards behind OKTA on a screen.')
+    parser.add_argument('-g','--git-config-url', dest='git_config_url', action='store', default=None,
+                        help='URL for a git repo where the JSON config file with the dashboards is stored.')
     parser.add_argument('--profile', dest='profile', action='store',
                         help='Sets the NOC profile. Select the dashboards to display.Ex: SRE or NET')
-    parser.add_argument('--cycle-freq', dest='cycleFrequency', action='store', default=60,
+    parser.add_argument('--cycle-freq', dest='cycle_frequency', action='store', default=60,
                         help='Sets the dashboard cycle frequency. Defaults to 60 seconds.')
     args = parser.parse_args()
+    
+    if not len(sys.argv) > 1:
+        parser.print_help()
+        sys.exit(1)
 
-    if args.host and not args.profile and not args.cycleFrequency:
-        parser.error("NOCDisplays requires NOC profile and cycle frequency. "
+    if not args.profile or not args.cycle_frequency:
+        parser.error("NOCd requires a profile and the cycle frequency. "
                      "Add --profile with SRE and --cycle-freq with 60 (s) for example.")
         sys.exit(1)
+    
+    if not args.git_config_url:
+        parser.error("NOCd requires a URL to a git repo where the JSON file with the dashboards is stored."
+                     " Add -g or --git-config-url followed by the URL.") 
+        sys.exit(1)
+
+    print('NOCd: Please enter the following information:')
+    username = raw_input('OKTA user>')
+    password = getpass('OKTA password>')
 
     # Start the app
 
     # Create NOCd instance
-    noc = nocd.Nocd(config_file=args.config, host=args.host, port=args.port, profile=args.profile,
-                    cycleFrequency=float(args.cycleFrequency))
+    noc = nocd.Nocd(username=username, password=password, git_config_url=args.git_config_url,
+                    profile=args.profile, cycle_frequency=int(args.cycle_frequency))
 
     # Create thread for API server
     api_thread = Thread(target=app.run, kwargs={'host': '0.0.0.0'})
