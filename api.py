@@ -2,11 +2,14 @@ from flask import Flask, request, abort
 import os
 import sys
 import binascii
+import logging
 import argparse
 import nocd
 from threading import Thread
 from getpass import getpass
 
+# Configure Logging
+logging.basicConfig(level=logging.DEBUG, filename='/dev/stdout')
 
 app = Flask(__name__)
 
@@ -164,8 +167,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     print('NOCd: Please enter the following information:')
-    username = raw_input('OKTA user>')
-    password = getpass('OKTA password>')
+    try:
+        username = raw_input('OKTA user>')
+        password = getpass('OKTA password>')
+    except KeyboardInterrupt:
+        logging.info("\nExiting...")
+        sys.exit(1)
 
     # Start the app
 

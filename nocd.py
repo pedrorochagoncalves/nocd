@@ -94,12 +94,12 @@ class Nocd(object):
 
     def stop_cycle_tab_thread(self):
         self.run_cycle_tab_thread = False
+        self.cycle_tab_thread.join()
 
     def clear_all_and_open_new_dashboard(self, url):
 
         # Stop cycling dashboards
         self.stop_cycle_tab_thread()
-        self.cycle_tab_thread.join()
 
         # Close all tabs except first one
         for num_tabs in range(self.num_tabs-1):
@@ -121,7 +121,6 @@ class Nocd(object):
 
         # Stop cycling dashboards
         self.stop_cycle_tab_thread()
-        self.cycle_tab_thread.join()
 
         # Open new tab
         GObject.idle_add(self.browser.new_tab)
@@ -146,7 +145,6 @@ class Nocd(object):
 
         # Stop cycling dashboards
         self.stop_cycle_tab_thread()
-        self.cycle_tab_thread.join()
 
         # Close tab
         GObject.idle_add(self.browser.close_tab, tab_index)
@@ -186,7 +184,6 @@ class Nocd(object):
 
         # Stop cycling dashboards
         self.stop_cycle_tab_thread()
-        self.cycle_tab_thread.join()
 
         if profile:
             self.profile = profile
@@ -215,6 +212,8 @@ class Nocd(object):
 
         # Close the application if GTK quit
         logging.info("Closing the application...")
+        self.stop_cycle_tab_thread()
+        logging.info("Bye.")
 
         # Exit
-        sys.exit(0)
+        return True
