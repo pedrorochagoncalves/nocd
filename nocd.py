@@ -38,8 +38,7 @@ class Nocd(object):
         self.profile              = profile
         self.cycle_frequency      = cycle_frequency
         self.run_cycle_tab_thread = True
-        self.cycle_tab_thread     = Thread(target=self.cycle_tabs)
-        self.cycle_tab_thread.setDaemon(True)
+        self.cycle_tab_thread     = None
         self.bind_window          = None
         self.dashboards           = self.git_repo.get_dashboards(profile)
 
@@ -89,6 +88,8 @@ class Nocd(object):
                 GObject.idle_add(self.browser.reload_url_in_tab, i, self.dashboards[i])
 
     def start_cycle_tab_thread(self):
+        self.cycle_tab_thread = Thread(target=self.cycle_tabs)
+        self.cycle_tab_thread.setDaemon(True)
         self.run_cycle_tab_thread = True
         self.cycle_tab_thread.start()
 
