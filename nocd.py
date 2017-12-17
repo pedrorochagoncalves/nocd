@@ -2,7 +2,7 @@ import logging
 import random
 import sys
 import time
-from gitapi import Gitapi
+from gistapi import Gistapi
 from pybrowser import Browser
 import gi.repository
 gi.require_version('Gtk', '3.0')
@@ -16,7 +16,7 @@ Gdk.threads_init()
 
 class Nocd(object):
 
-    def __init__(self, username=None, password=None, git_config_url=None, profile=None, cycle_frequency=60):
+    def __init__(self, username=None, password=None, gist_config_url=None, profile=None, cycle_frequency=60):
 
         # Configure Logging
         logging.basicConfig(level=logging.DEBUG, filename='/dev/stdout')
@@ -24,14 +24,13 @@ class Nocd(object):
         if not username or not password:
             logging.critical("OKTA username and password are required.")
             sys.exit(1)
-        if not git_config_url:
+        if not gist_config_url:
             logging.critical("Provided git repo URL is empty.")
             sys.exit(1)
 
-        self.git_repo             = Gitapi(git_config_url)
+        self.gist                 = Gistapi(gist_config_url)
         self.username             = username
         self.password             = password
-        self.git_config_url       = git_config_url
         self.browser              = Browser(self.username, self.password)
         self.num_tabs             = 1
         self.client               = None
@@ -40,7 +39,7 @@ class Nocd(object):
         self.run_cycle_tab_thread = True
         self.cycle_tab_thread     = None
         self.bind_window          = None
-        self.dashboards           = self.git_repo.get_dashboards(profile)
+        self.dashboards           = self.gist.get_dashboards(profile)
 
     def init_browser(self):
         self.browser = Browser(self.username, self.password)
@@ -189,7 +188,7 @@ class Nocd(object):
         if profile:
             self.profile = profile
 
-        self.set_dashboards(self.git_repo.get_dashboards(self.profile))
+        self.set_dashboards(self.gist.get_dashboards(self.profile))
         self.open_dashboards()
 
         # Start cycling dashboards
@@ -201,8 +200,7 @@ class Nocd(object):
         # Initialize the UI
         Gtk.init(sys.argv)
 
-        # Git pull the dashboards for the specified profile and open them
-        self.set_dashboards(self.git_repo.get_dashboards(self.profile))
+        # Dashboards were pulled in init
         self.open_dashboards()
 
         # Start cycling dashboards

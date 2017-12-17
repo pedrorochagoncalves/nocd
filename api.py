@@ -144,8 +144,8 @@ def open_dashboards_for_profile(profile):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='NOCd - A simple app to rotate dashboards behind OKTA on a screen.')
-    parser.add_argument('-g','--git-config-url', dest='git_config_url', action='store', default=None,
-                        help='URL for a git repo where the JSON config file with the dashboards is stored.')
+    parser.add_argument('-g','--gist-config-url', dest='gist_config_url', action='store', default=None,
+                        help='URL for a git gist where the JSON config file with the dashboards is stored.')
     parser.add_argument('--profile', dest='profile', action='store',
                         help='Sets the NOC profile. Select the dashboards to display.Ex: SRE or NET')
     parser.add_argument('--cycle-freq', dest='cycle_frequency', action='store', default=60,
@@ -161,9 +161,9 @@ if __name__ == "__main__":
                      "Add --profile with SRE and --cycle-freq with 60 (s) for example.")
         sys.exit(1)
     
-    if not args.git_config_url:
+    if not args.gist_config_url:
         parser.error("NOCd requires a URL to a git repo where the JSON file with the dashboards is stored."
-                     " Add -g or --git-config-url followed by the URL.") 
+                     " Add -g or --gist-config-url followed by the URL.")
         sys.exit(1)
 
     print('NOCd: Please enter the following information:')
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     # Start the app
 
     # Create NOCd instance
-    noc = nocd.Nocd(username=username, password=password, git_config_url=args.git_config_url,
+    noc = nocd.Nocd(username=username, password=password, gist_config_url=args.gist_config_url,
                     profile=args.profile, cycle_frequency=int(args.cycle_frequency))
 
     # Create thread for API server
